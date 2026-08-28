@@ -3,10 +3,10 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Foundation slice complete; Lombok accessor phase complete; persistent POC implementation is next.
-- Completed: Gradle Spring Boot project, JWT tenant claims, protected document APIs, in-memory tenant ownership, chunking, bounded agent query flow, specification Gradle alignment, focused tests, and Lombok-based entity accessors.
+- Status: Foundation slice complete; persistent POC implementation is next.
+- Completed: Gradle Spring Boot project, JWT tenant claims, protected document APIs, in-memory tenant ownership, chunking, bounded agent query flow, specification Gradle alignment, and focused tests.
 - Pending: PostgreSQL persistence and tenant-scoped repositories, Kafka ingestion, pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew test` passed in `findoc-agent` after the Lombok conversion.
+- Validation: `./gradlew test` and `./gradlew build` passed in `findoc-agent`.
 - Next item: Implement Story 002, persistent PostgreSQL domain storage and tenant isolation.
 
 ## Stories and Phases
@@ -16,8 +16,6 @@ This file is the authoritative starting point for implementation work across ses
 | Setup | This file | Complete | Register the first implementation story |
 
 | Standards | Repository guidance | Complete | Apply standards to the first implementation story |
-
-| Phase 001 | Lombok entity accessors | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
 | Story 001 | [Gradle foundation and core API slice](story-001-gradle-foundation.md) | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
