@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+version=8.10.2
+base="${GRADLE_USER_HOME:-$HOME/.gradle}/wrapper/dists/gradle-$version-bin"
+bin="$base/gradle-$version/bin/gradle"
+if [ ! -x "$bin" ]; then
+  archive="$base/gradle-$version-bin.zip"
+  mkdir -p "$base"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$archive" "https://services.gradle.org/distributions/gradle-$version-bin.zip"
+  else
+    wget -q -O "$archive" "https://services.gradle.org/distributions/gradle-$version-bin.zip"
+  fi
+  unzip -q "$archive" -d "$base"
+fi
+exec "$bin" "$@"

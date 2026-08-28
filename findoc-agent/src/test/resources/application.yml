@@ -1,0 +1,6 @@
+spring:
+  main:
+    web-application-type: none
+jwt:
+  secret: test-secret-at-least-32-characters-long
+  expiry-seconds: 3600

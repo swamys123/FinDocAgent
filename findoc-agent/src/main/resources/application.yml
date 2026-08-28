@@ -1,0 +1,17 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: findoc-agent
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+jwt:
+  secret: ${JWT_SECRET:local-dev-secret-at-least-32-characters-long}
+  expiry-seconds: 3600
+agent:
+  max-iterations: 5
+  top-k: 5
+management:
+  endpoints.web.exposure.include: health,info
