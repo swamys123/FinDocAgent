@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Persistence foundation is implemented; the next step is full document lifecycle validation and the Kafka/vector ingestion story.
-- Completed: Gradle Spring Boot project, JWT tenant claims, protected document APIs, in-memory tenant ownership, chunking, bounded agent query flow, specification Gradle alignment, JPA/PostgreSQL foundation, Liquibase schema bootstrap, tenant-aware repositories, and repository-backed auth/document logic.
-- Pending: Full Postgres-backed document lifecycle, Kafka ingestion, pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew test --console=plain` passed in `findoc-agent` with exit code 0.
-- Next item: Validate the full document lifecycle against a real Postgres-backed environment, then proceed to Story 003 Kafka ingestion.
+- Status: Foundation slice complete; Lombok accessor phase complete; persistent POC implementation is next.
+- Completed: Gradle Spring Boot project, JWT tenant claims, protected document APIs, in-memory tenant ownership, chunking, bounded agent query flow, specification Gradle alignment, focused tests, and Lombok-based entity accessors.
+- Pending: PostgreSQL persistence and tenant-scoped repositories, Kafka ingestion, pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
+- Validation: `./gradlew test` passed in `findoc-agent` after the Lombok conversion.
+- Next item: Implement Story 002, persistent PostgreSQL domain storage and tenant isolation.
 
 ## Stories and Phases
 
@@ -17,9 +17,11 @@ This file is the authoritative starting point for implementation work across ses
 
 | Standards | Repository guidance | Complete | Apply standards to the first implementation story |
 
+| Phase 001 | Lombok entity accessors | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
+
 | Story 001 | [Gradle foundation and core API slice](story-001-gradle-foundation.md) | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
-| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | In progress | Validate the full document lifecycle against Postgres and transition into Kafka ingestion |
+| Story 002 | Planned: persistence and tenant isolation | Planned | Add Kafka ingestion after the database contract is stable |
 
 | Story 003 | Planned: asynchronous ingestion and embeddings | Planned | Add vector retrieval and agent tools |
 

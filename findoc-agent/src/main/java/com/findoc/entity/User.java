@@ -1,6 +1,8 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -8,6 +10,7 @@ import java.util.UUID;
 @Table(name = "users", uniqueConstraints = {
     @UniqueConstraint(name = "uk_users_username_tenant", columnNames = {"tenant_id", "username"})
 })
+@Getter
 public class User {
 
     @Id
@@ -38,6 +41,7 @@ public class User {
     private Instant updatedAt;
 
     @Column(name = "deleted_at")
+    @Setter
     private Instant deletedAt;
 
     protected User() {
@@ -67,43 +71,4 @@ public class User {
         updatedAt = Instant.now();
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public Tenant getTenant() {
-        return tenant;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public Instant getDeletedAt() {
-        return deletedAt;
-    }
-
-    public void setDeletedAt(Instant deletedAt) {
-        this.deletedAt = deletedAt;
-    }
 }

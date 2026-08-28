@@ -1,11 +1,14 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "documents")
+@Getter
 public class Document {
 
     public enum Status {
@@ -39,12 +42,15 @@ public class Document {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
+    @Setter
     private Status status = Status.PENDING;
 
     @Column(name = "error_msg")
+    @Setter
     private String errorMessage;
 
     @Column(name = "retry_count", nullable = false)
+    @Setter
     private Integer retryCount = 0;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -54,6 +60,7 @@ public class Document {
     private Instant updatedAt;
 
     @Column(name = "deleted_at")
+    @Setter
     private Instant deletedAt;
 
     protected Document() {
@@ -83,67 +90,4 @@ public class Document {
         updatedAt = Instant.now();
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public Tenant getTenant() {
-        return tenant;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public String getFilename() {
-        return filename;
-    }
-
-    public String getFileType() {
-        return fileType;
-    }
-
-    public Integer getPageCount() {
-        return pageCount;
-    }
-
-    public Status getStatus() {
-        return status;
-    }
-
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    public Integer getRetryCount() {
-        return retryCount;
-    }
-
-    public void setRetryCount(Integer retryCount) {
-        this.retryCount = retryCount;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public Instant getDeletedAt() {
-        return deletedAt;
-    }
-
-    public void setDeletedAt(Instant deletedAt) {
-        this.deletedAt = deletedAt;
-    }
 }

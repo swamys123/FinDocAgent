@@ -1,11 +1,14 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "document_chunks")
+@Getter
 public class DocumentChunk {
 
     @Id
@@ -28,12 +31,15 @@ public class DocumentChunk {
     private String content;
 
     @Column(name = "token_count")
+    @Setter
     private Integer tokenCount;
 
     @Column(name = "embedding")
+    @Setter
     private byte[] embedding;
 
     @Column(name = "metadata", columnDefinition = "TEXT")
+    @Setter
     private String metadata;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -50,51 +56,4 @@ public class DocumentChunk {
         this.createdAt = Instant.now();
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public Document getDocument() {
-        return document;
-    }
-
-    public Tenant getTenant() {
-        return tenant;
-    }
-
-    public Integer getChunkIndex() {
-        return chunkIndex;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public Integer getTokenCount() {
-        return tokenCount;
-    }
-
-    public void setTokenCount(Integer tokenCount) {
-        this.tokenCount = tokenCount;
-    }
-
-    public byte[] getEmbedding() {
-        return embedding;
-    }
-
-    public void setEmbedding(byte[] embedding) {
-        this.embedding = embedding;
-    }
-
-    public String getMetadata() {
-        return metadata;
-    }
-
-    public void setMetadata(String metadata) {
-        this.metadata = metadata;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
 }

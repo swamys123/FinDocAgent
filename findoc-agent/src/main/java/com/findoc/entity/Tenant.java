@@ -1,11 +1,14 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "tenants")
+@Getter
 public class Tenant {
 
     @Id
@@ -23,6 +26,7 @@ public class Tenant {
     private Instant updatedAt;
 
     @Column(name = "deleted_at")
+    @Setter
     private Instant deletedAt;
 
     protected Tenant() {
@@ -49,27 +53,4 @@ public class Tenant {
         updatedAt = Instant.now();
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public Instant getDeletedAt() {
-        return deletedAt;
-    }
-
-    public void setDeletedAt(Instant deletedAt) {
-        this.deletedAt = deletedAt;
-    }
 }
