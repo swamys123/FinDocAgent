@@ -1,5 +1,8 @@
 package com.findoc.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
-public record AuthRequest(@NotBlank String username, @NotBlank String password) {}
+import java.util.UUID;
+
+public record AuthRequest(@NotNull UUID tenantId, @NotBlank String username, @NotBlank String password) {}

@@ -4,7 +4,7 @@ This file is the authoritative starting point for implementation work across ses
 
 ## Current Phase
 - Status: Foundation and persistence POC slices complete; asynchronous ingestion is next.
-- Completed: Gradle Spring Boot project, JWT tenant claims, protected document APIs, tenant-scoped persistence, chunking, bounded agent query flow, document lifecycle validation, and focused tests.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, chunking, bounded agent query flow, document lifecycle validation, and focused tests.
 - Pending: PostgreSQL persistence and tenant-scoped repositories, Kafka ingestion, pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
 - Validation: `./gradlew test` and `./gradlew build` passed in `findoc-agent`.
 - Next item: Implement Story 003, asynchronous Kafka ingestion and embeddings.

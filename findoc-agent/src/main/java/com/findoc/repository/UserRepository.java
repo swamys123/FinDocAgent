@@ -9,9 +9,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
-    @Query("select u from User u where u.username = :username and u.deletedAt is null")
-    Optional<User> findByUsernameAndDeletedAtIsNull(@Param("username") String username);
-
     @Query("select u from User u where u.username = :username and u.tenant.id = :tenantId and u.deletedAt is null")
     Optional<User> findByUsernameAndTenantIdAndDeletedAtIsNull(@Param("username") String username, @Param("tenantId") UUID tenantId);
 }

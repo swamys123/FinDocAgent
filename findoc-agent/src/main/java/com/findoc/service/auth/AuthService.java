@@ -23,7 +23,7 @@ public class AuthService {
     }
 
     public AuthResponse authenticate(AuthRequest request) {
-        User user = userRepository.findByUsernameAndDeletedAtIsNull(request.username())
+        User user = userRepository.findByUsernameAndTenantIdAndDeletedAtIsNull(request.username(), request.tenantId())
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
 
         if (!encoder.matches(request.password(), user.getPasswordHash())) {
