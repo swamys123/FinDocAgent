@@ -14,13 +14,16 @@ public class KafkaIngestionConsumer {
 
     private final IngestionService ingestionService;
     private final KafkaTemplate<String, IngestionJob> kafkaTemplate;
+    private final String topic;
     private final String dlqTopic;
 
     public KafkaIngestionConsumer(IngestionService ingestionService,
                                   KafkaTemplate<String, IngestionJob> kafkaTemplate,
+                                  @Value("${findoc.ingestion.topic:findoc.ingestion}") String topic,
                                   @Value("${findoc.ingestion.dlq:findoc.ingestion.dlq}") String dlqTopic) {
         this.ingestionService = ingestionService;
         this.kafkaTemplate = kafkaTemplate;
+        this.topic = topic;
         this.dlqTopic = dlqTopic;
     }
 
@@ -29,14 +32,24 @@ public class KafkaIngestionConsumer {
         try {
             ingestionService.ingest(job);
         } catch (Exception exception) {
-            ingestionService.recordFailure(job, exception.getMessage(), false);
-            throw exception;
+            boolean exhausted = job.attemptNumber() >= MAX_RETRIES;
+            ingestionService.recordFailure(job, exception.getMessage(), exhausted);
+            if (exhausted) {
+                sendAndConfirm(dlqTopic, job);
+            } else {
+                sendAndConfirm(topic, new IngestionJob(
+                    job.documentId(), job.tenantId(), job.userId(), job.attemptNumber() + 1));
+            }
         }
     }
 
     public void sendToDlq(IngestionJob job) {
+        sendAndConfirm(dlqTopic, job);
+    }
+
+    private void sendAndConfirm(String destination, IngestionJob job) {
         try {
-            kafkaTemplate.send(dlqTopic, job.documentId().toString(), job).get();
+            kafkaTemplate.send(destination, job.documentId().toString(), job).get();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while confirming DLQ send", exception);

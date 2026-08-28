@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Asynchronous ingestion implementation is in progress; PostgreSQL/Kafka runtime validation remains.
+- Status: Asynchronous ingestion and bounded retry/DLQ handling are implemented; PostgreSQL/Kafka runtime validation remains.
 - Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, Kafka ingestion wiring, PDF/text extraction, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, lifecycle validation, retry/DLQ configuration, and focused tests.
 - Pending: PostgreSQL/pgvector and Kafka integration validation, stronger ingestion tests, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew clean test --console=plain` passed in `findoc-agent`, and `./gradlew bootRun --console=plain` started successfully on port 8080.
-- Next item: Connect Gemini embeddings to the asynchronous ingestion pipeline and add PostgreSQL/pgvector integration tests.
+- Validation: `./gradlew clean test --console=plain` and focused Kafka retry/DLQ tests pass in `findoc-agent`; PostgreSQL/Kafka runtime validation remains.
+- Next item: Add focused ingestion service tests and run PostgreSQL/pgvector plus Kafka integration validation.
 
 ## Stories and Phases
 
@@ -21,7 +21,7 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | Complete for current POC; PostgreSQL validation remains | Maintain tenant-scoped persistence |
 
-| Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | In progress | Validate asynchronous ingestion against PostgreSQL and Kafka |
+| Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | In progress | Add ingestion service tests and validate PostgreSQL/Kafka |
 
 | Story 004 | Planned: agent retrieval and audit trace | Planned | Complete API contracts and integration tests |
 
