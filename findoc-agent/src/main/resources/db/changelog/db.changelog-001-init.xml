@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="001-create-extensions" author="copilot">
+        <sql>
+            CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        </sql>
+    </changeSet>
+
+    <changeSet id="002-create-tenants" author="copilot">
+        <createTable tableName="tenants">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="003-create-users" author="copilot">
+        <createTable tableName="users">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_users_tenant" references="tenants(id)"/>
+            </column>
+            <column name="username" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="email" type="VARCHAR(255)"/>
+            <column name="password_hash" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="role" type="VARCHAR(50)" defaultValue="USER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+        <addUniqueConstraint tableName="users" columnNames="tenant_id, username" constraintName="uk_users_tenant_username"/>
+    </changeSet>
+
+    <changeSet id="004-create-documents" author="copilot">
+        <createTable tableName="documents">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_documents_tenant" references="tenants(id)"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_documents_user" references="users(id)"/>
+            </column>
+            <column name="filename" type="VARCHAR(500)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="file_type" type="VARCHAR(50)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="page_count" type="INTEGER"/>
+            <column name="status" type="VARCHAR(50)" defaultValue="PENDING">
+                <constraints nullable="false"/>
+            </column>
+            <column name="error_msg" type="TEXT"/>
+            <column name="retry_count" type="INTEGER" defaultValueNumeric="0">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="005-create-document-chunks" author="copilot">
+        <createTable tableName="document_chunks">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="document_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_document_chunks_document" references="documents(id)"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_document_chunks_tenant" references="tenants(id)"/>
+            </column>
+            <column name="chunk_index" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="token_count" type="INTEGER"/>
+            <column name="embedding" type="BYTEA"/>
+            <column name="metadata" type="TEXT"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="document_chunks" indexName="idx_document_chunks_tenant_document">
+            <column name="tenant_id"/>
+            <column name="document_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="010-add-document-source-path" author="copilot">
+        <addColumn tableName="documents">
+            <column name="source_path" type="VARCHAR(1000)"/>
+        </addColumn>
+    </changeSet>
+
+    <changeSet id="006-create-agent-sessions" author="copilot">
+        <createTable tableName="agent_sessions">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_agent_sessions_tenant" references="tenants(id)"/>
+            </column>
+            <column name="user_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_agent_sessions_user" references="users(id)"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="deleted_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="007-create-session-messages" author="copilot">
+        <createTable tableName="session_messages">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_session_messages_session" references="agent_sessions(id)"/>
+            </column>
+            <column name="role" type="VARCHAR(20)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="008-create-query-traces" author="copilot">
+        <createTable tableName="query_traces">
+            <column name="id" type="UUID" defaultValueComputed="uuid_generate_v4()">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="session_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_query_traces_session" references="agent_sessions(id)"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" foreignKeyName="fk_query_traces_tenant" references="tenants(id)"/>
+            </column>
+            <column name="query" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="intent" type="VARCHAR(50)"/>
+            <column name="steps" type="TEXT"/>
+            <column name="answer" type="TEXT"/>
+            <column name="confidence" type="DECIMAL(4,3)"/>
+            <column name="duration_ms" type="INTEGER"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+    <changeSet id="009-seed-demo-tenant-user" author="copilot">
+        <insert tableName="tenants">
+            <column name="id" value="00000000-0000-0000-0000-000000000001"/>
+            <column name="name" value="Demo Tenant"/>
+        </insert>
+        <insert tableName="users">
+            <column name="id" value="00000000-0000-0000-0000-000000000002"/>
+            <column name="tenant_id" value="00000000-0000-0000-0000-000000000001"/>
+            <column name="username" value="demo@findoc.local"/>
+            <column name="email" value="demo@findoc.local"/>
+            <column name="password_hash" value="$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCi.sMKMTxGiRm3/zI/XtGi"/>
+            <column name="role" value="USER"/>
+        </insert>
+    </changeSet>
+</databaseChangeLog>

@@ -14,6 +14,8 @@ Agentic RAG backend. Java 17, Spring Boot 3.2, PostgreSQL + pgvector, Kafka.
 - Chunk size: 512 tokens, overlap: 50 tokens
 - Agent loop max iterations: 5 — never remove this guard
 - Log trace_id and tenant_id in MDC on every request
+- Use Lombok for entity boilerplate accessors instead of handwritten getters and setters. Add setters only where controlled mutation is part of the domain contract; do not expose mutable access to identifiers, relationships, or audit fields without a clear need.
+- Prioritize implementation correctness and behavior validation first. Once the implementation is correct, add focused unit tests for the class logic, including failure paths and security boundaries.
 
 ## Production engineering standards
 - Generated code must be production grade: validate inputs, handle failures explicitly, preserve security boundaries, and avoid placeholder implementations in production paths.

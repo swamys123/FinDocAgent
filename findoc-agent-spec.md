@@ -78,7 +78,7 @@ get_session_history(session_id: string) → Message[]
 |----|-------------|
 | FR-19 | All endpoints (except /health and /api-docs) SHALL require a valid JWT Bearer token |
 | FR-20 | JWT SHALL carry tenant_id and user_id claims used for data scoping |
-| FR-21 | System SHALL expose POST /auth/token accepting { username, password } returning a signed JWT for local dev testing (no external IdP needed for POC) |
+| FR-21 | System SHALL expose POST /auth/token accepting { tenantId, username, password } returning a signed JWT for local dev testing (no external IdP needed for POC) |
 
 ---
 

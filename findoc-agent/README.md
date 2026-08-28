@@ -10,7 +10,8 @@ export JWT_SECRET=local-dev-secret-at-least-32-characters-long
 ```
 
 Run tests with `./gradlew test`. Authenticate with `POST /api/v1/auth/token` using
-`demo@findoc.local` and `demo123`, then upload text or PDF content through
+tenant id `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`,
+and password `demo123`, then upload text or PDF content through
 `POST /api/v1/documents/upload`.
 
 The current first implementation slice provides JWT tenant claims, tenant-scoped
