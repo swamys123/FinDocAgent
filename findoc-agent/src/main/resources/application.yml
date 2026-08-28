@@ -21,6 +21,27 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: findoc-ingestion-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.findoc.messaging
+    listener:
+      missing-topics-fatal: false
+      ack-mode: manual
+ingestion:
+  upload-dir: ${INGESTION_UPLOAD_DIR:${java.io.tmpdir}/findoc-uploads}
+  max-retry: 3
+  kafka:
+    topic: findoc.ingestion
+    dlq-topic: findoc.ingestion.dlq
 jwt:
   secret: ${JWT_SECRET:local-dev-secret-at-least-32-characters-long}
   expiry-seconds: 3600

@@ -3,10 +3,10 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Foundation and persistence POC slices complete; asynchronous ingestion is next.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, chunking, bounded agent query flow, document lifecycle validation, and focused tests.
-- Pending: PostgreSQL persistence and tenant-scoped repositories, Kafka ingestion, pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew test` and `./gradlew build` passed in `findoc-agent`.
+- Status: Foundation and persistence POC slices complete; asynchronous Kafka ingestion is implemented and embeddings are next.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, asynchronous Kafka ingestion, PDF/text extraction, chunking, bounded agent query flow, document lifecycle validation, and focused tests.
+- Pending: pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
+- Validation: `./gradlew clean test` passed in `findoc-agent` after the Kafka ingestion implementation.
 - Next item: Implement Story 003, asynchronous Kafka ingestion and embeddings.
 
 ## Stories and Phases
@@ -19,9 +19,9 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 001 | [Gradle foundation and core API slice](story-001-gradle-foundation.md) | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
-| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | In progress | Add Kafka ingestion after the database contract is stable |
+| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | In progress | Add Gemini embeddings and pgvector retrieval |
 
-| Story 003 | Planned: asynchronous ingestion and embeddings | Planned | Add vector retrieval and agent tools |
+| Story 003 | Planned: asynchronous ingestion and embeddings | In progress | Add Gemini embeddings and pgvector retrieval |
 
 | Story 004 | Planned: agent retrieval and audit trace | Planned | Complete API contracts and integration tests |
 

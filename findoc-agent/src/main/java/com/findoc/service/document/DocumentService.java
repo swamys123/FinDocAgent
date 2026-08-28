@@ -9,14 +9,18 @@ import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.UserRepository;
 import com.findoc.util.TenantContext;
+import com.findoc.messaging.IngestionMessage;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -29,15 +33,24 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
     private final UserRepository userRepository;
+    private final KafkaTemplate<String, IngestionMessage> kafkaTemplate;
+    private final Path uploadDirectory;
+    private final String ingestionTopic;
 
     public DocumentService(ChunkingService chunkingService,
                           DocumentRepository documentRepository,
                           DocumentChunkRepository documentChunkRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          KafkaTemplate<String, IngestionMessage> kafkaTemplate,
+                          @Value("${ingestion.upload-dir:${java.io.tmpdir}/findoc-uploads}") String uploadDirectory,
+                          @Value("${ingestion.kafka.topic:findoc.ingestion}") String ingestionTopic) {
         this.chunkingService = chunkingService;
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.userRepository = userRepository;
+        this.kafkaTemplate = kafkaTemplate;
+        this.uploadDirectory = Path.of(uploadDirectory);
+        this.ingestionTopic = ingestionTopic;
     }
 
     @Transactional
@@ -56,22 +69,16 @@ public class DocumentService {
             throw new IllegalArgumentException("User does not belong to the current tenant");
         }
 
-        String text = "text/plain".equals(type)
-            ? new String(file.getBytes(), StandardCharsets.UTF_8)
-            : file.getOriginalFilename() == null ? "" : file.getOriginalFilename();
-
         Document document = new Document(user.getTenant(), user, file.getOriginalFilename(), type);
         document.setStatus(Document.Status.PENDING);
+        Files.createDirectories(uploadDirectory);
+        Path sourcePath = uploadDirectory.resolve(UUID.randomUUID() + "-" + safeFilename(file.getOriginalFilename()));
+        Files.write(sourcePath, file.getBytes());
+        document.setSourcePath(sourcePath.toString());
         Document saved = documentRepository.save(document);
-
-        List<String> chunks = chunkingService.chunk(text);
-        for (int i = 0; i < chunks.size(); i++) {
-            DocumentChunk chunk = new DocumentChunk(saved, user.getTenant(), i, chunks.get(i));
-            chunk.setTokenCount(chunks.get(i).split("\\s+").length);
-            documentChunkRepository.save(chunk);
-        }
-
-        return response(saved, saved.getStatus().name(), chunks.size());
+        kafkaTemplate.send(ingestionTopic, saved.getId().toString(), new IngestionMessage(
+            saved.getId(), TenantContext.tenantId(), TenantContext.userId(), sourcePath.toString(), type, 1));
+        return response(saved, saved.getStatus().name(), 0);
     }
 
     @Transactional(readOnly = true)
@@ -110,5 +117,9 @@ public class DocumentService {
 
     private DocumentResponse response(Document document, String status, int chunkCount) {
         return new DocumentResponse(document.getId(), document.getFilename(), document.getFileType(), status, chunkCount, document.getCreatedAt());
+    }
+
+    private String safeFilename(String filename) {
+        return Path.of(filename == null ? "upload" : filename).getFileName().toString();
     }
 }

@@ -1,4 +1,7 @@
 spring:
+  kafka:
+    listener:
+      auto-startup: false
   main:
     web-application-type: servlet
   datasource:
