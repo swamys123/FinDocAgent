@@ -13,11 +13,13 @@ In progress
 - Added tenant-scoped cosine retrieval for all active documents or an explicit document scope.
 - Updated agent queries to embed the query and use semantic retrieval while preserving the five-iteration limit.
 - Enforced tenant-scoped user lookup during upload.
+- Added PostgreSQL BYTEA source persistence so uploads can be processed after the request returns.
+- Added Kafka ingestion wiring, PDFBox extraction, Gemini embedding persistence, idempotent chunk replacement, lifecycle transitions, and bounded retry/DLQ recovery.
 
 ## Pending Work
 
-- Reconnect the embedding service to the Kafka ingestion pipeline once the ingestion source is restored in this checkout.
-- Add idempotent chunk replacement, failure transitions, retry/DLQ send confirmation, and integration tests against PostgreSQL with pgvector.
+- Validate the Kafka ingestion pipeline against real Kafka and PostgreSQL with pgvector.
+- Add focused ingestion tests for upload publication, extraction, embedding failures, idempotency, tenant boundaries, and DLQ exhaustion.
 - Add source IDs and similarity scores to the agent response contract.
 - Implement OpenRouter generation, sessions, traces, comparison, MDC tracing, OpenAPI, and Docker Compose in later phases.
 
@@ -25,8 +27,8 @@ In progress
 
 - `./gradlew clean test --console=plain` passed in `findoc-agent`.
 - Clean Java compilation passed after the vector and Gemini changes.
-- Existing H2 repository tests remain passing; native `<=>` retrieval still requires PostgreSQL with pgvector for integration validation.
+- Existing H2 repository tests and the focused document lifecycle test remain passing; native `<=>` retrieval and BYTEA/Liquibase behavior still require PostgreSQL with pgvector for integration validation.
 
 ## Next Implementation Item
 
-Restore or implement the asynchronous ingestion pipeline and generate one Gemini embedding per persisted chunk before marking a document `READY`.
+Run PostgreSQL/Kafka integration validation and add focused ingestion tests before starting OpenRouter generation.

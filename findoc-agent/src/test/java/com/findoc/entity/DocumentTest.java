@@ -33,4 +33,17 @@ class DocumentTest {
         assertThat(document.getErrorMessage()).isEqualTo("Unable to extract text");
         assertThat(document.getRetryCount()).isEqualTo(1);
     }
+
+    @Test
+    void returnsToPendingBetweenIngestionAttempts() {
+        Tenant tenant = new Tenant("Tenant");
+        User user = new User(tenant, "user", "user@findoc.local", "hash");
+        Document document = new Document(tenant, user, "report.pdf", "application/pdf");
+
+        document.markProcessing();
+        document.recordFailure("temporary embedding failure", false);
+
+        assertThat(document.getStatus()).isEqualTo(Document.Status.PENDING);
+        assertThat(document.getRetryCount()).isEqualTo(1);
+    }
 }

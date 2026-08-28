@@ -10,6 +10,10 @@ import java.util.List;
 import java.util.UUID;
 
 public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UUID> {
+    void deleteByDocumentIdAndTenantId(UUID documentId, UUID tenantId);
+
+    long countByDocumentIdAndTenantId(UUID documentId, UUID tenantId);
+
     @Query("select c from DocumentChunk c where c.document.id = :documentId and c.tenant.id = :tenantId order by c.chunkIndex asc")
     List<DocumentChunk> findByDocumentIdAndTenantIdOrderByChunkIndexAsc(@Param("documentId") UUID documentId, @Param("tenantId") UUID tenantId);
 

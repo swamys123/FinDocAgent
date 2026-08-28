@@ -132,6 +132,24 @@ public class Document {
         retryCount++;
     }
 
+    public void resetForRetry() {
+        requireStatus(Status.FAILED);
+        status = Status.PENDING;
+    }
+
+    public void recordFailure(String message, boolean exhausted) {
+        if (status != Status.PENDING && status != Status.PROCESSING) {
+            throw new IllegalStateException("Document cannot fail from status " + status);
+        }
+        retryCount++;
+        errorMessage = message;
+        if (exhausted) {
+            status = Status.FAILED;
+        } else {
+            status = Status.PENDING;
+        }
+    }
+
     public void setStatus(Status status) {
         this.status = status;
     }
