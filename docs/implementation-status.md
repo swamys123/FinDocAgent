@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Asynchronous ingestion and bounded retry/DLQ handling are implemented; PostgreSQL/Kafka runtime validation remains.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, Kafka ingestion wiring, PDF/text extraction, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, lifecycle validation, retry/DLQ configuration, and focused tests.
+- Status: Asynchronous ingestion and Spring-owned bounded retry/DLQ handling are implemented; PostgreSQL/Kafka runtime validation remains.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, lifecycle validation, Spring-owned retry/DLQ configuration, and focused tests.
 - Pending: PostgreSQL/pgvector and Kafka integration validation, stronger ingestion tests, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
 - Validation: `./gradlew clean test --console=plain` and focused Kafka retry/DLQ tests pass in `findoc-agent`; PostgreSQL/Kafka runtime validation remains.
-- Next item: Add focused ingestion service tests and run PostgreSQL/pgvector plus Kafka integration validation.
+- Next item: Complete remaining upload/idempotency ingestion tests and run PostgreSQL/pgvector plus Kafka integration validation.
 
 ## Stories and Phases
 

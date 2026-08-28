@@ -1,7 +1,7 @@
 # Story 002: Persistence and Tenant Isolation
 
 ## Status
-In progress
+Complete for current POC; runtime integration validation remains
 
 ## Completed Work
 
@@ -22,9 +22,9 @@ In progress
 
 ## Current Limitations
 
-- The document workflow is still a minimal persistence implementation; status transitions are not yet fully asynchronous.
-- The upload flow still writes chunks directly in the same request path instead of handing work to Kafka.
-- The database schema is a baseline for tenant isolation and document persistence, not yet the full event-driven ingestion model.
+- The document workflow is a minimal persistence implementation; production-grade delivery still requires an outbox or reconciliation strategy.
+- Uploads persist durable BYTEA sources and hand ingestion to Kafka; confirmed publication failure handling is covered, but real Kafka validation remains.
+- The database schema supports the current event-driven ingestion model, while native pgvector behavior still requires PostgreSQL validation.
 - Existing clients using only username and password must include the tenant UUID in token requests.
 - The remaining Stories 003 and 004 still need the Kafka job, vector retrieval, model integrations, and audit/session persistence.
 
@@ -36,4 +36,4 @@ In progress
 
 ## Next Implementation Item
 
-Run the full test/build validation, then implement Kafka ingestion that consumes the document lifecycle and persists extraction/chunk results asynchronously.
+Run PostgreSQL/pgvector and Kafka integration validation, then complete the agent response contract and generation boundary.

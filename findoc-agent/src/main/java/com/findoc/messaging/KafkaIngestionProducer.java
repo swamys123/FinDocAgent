@@ -4,6 +4,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.ExecutionException;
+
 @Component
 public class KafkaIngestionProducer implements IngestionProducer {
     private final KafkaTemplate<String, IngestionJob> kafkaTemplate;
@@ -17,6 +19,13 @@ public class KafkaIngestionProducer implements IngestionProducer {
 
     @Override
     public void publish(IngestionJob job) {
-        kafkaTemplate.send(topic, job.documentId().toString(), job);
+        try {
+            kafkaTemplate.send(topic, job.documentId().toString(), job).get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while confirming ingestion publication", exception);
+        } catch (ExecutionException exception) {
+            throw new IllegalStateException("Unable to confirm ingestion publication", exception);
+        }
     }
 }

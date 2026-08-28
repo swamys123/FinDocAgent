@@ -50,6 +50,7 @@ public class IngestionService {
         if (extraction.text() == null || extraction.text().isBlank()) {
             throw new IllegalArgumentException("Document contains no extractable text");
         }
+        document.setPageCount(extraction.pageCount());
 
         var chunks = chunkingService.chunk(extraction.text());
         if (chunks.isEmpty()) {
