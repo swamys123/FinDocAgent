@@ -9,7 +9,7 @@ import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.UserRepository;
 import com.findoc.util.TenantContext;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -23,6 +23,8 @@ import java.util.UUID;
 
 @Service
 public class DocumentService {
+    private static final int MAX_DOCUMENTS_PER_LIST = 100;
+
     private final ChunkingService chunkingService;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
@@ -74,7 +76,8 @@ public class DocumentService {
 
     @Transactional(readOnly = true)
     public List<DocumentResponse> list() {
-        return documentRepository.findByTenantIdAndDeletedAtIsNull(TenantContext.tenantId(), Pageable.unpaged())
+        return documentRepository.findByTenantIdAndDeletedAtIsNull(
+            TenantContext.tenantId(), PageRequest.of(0, MAX_DOCUMENTS_PER_LIST))
             .stream()
             .map(document -> response(document, document.getStatus().name(), documentChunkRepository.findByDocumentIdAndTenantIdOrderByChunkIndexAsc(document.getId(), TenantContext.tenantId()).size()))
             .toList();

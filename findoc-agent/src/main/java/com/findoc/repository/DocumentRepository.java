@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
-    @Query("select d from Document d where d.tenant.id = :tenantId and d.deletedAt is null")
+    @Query("select d from Document d where d.tenant.id = :tenantId and d.deletedAt is null order by d.createdAt desc")
     Page<Document> findByTenantIdAndDeletedAtIsNull(@Param("tenantId") UUID tenantId, Pageable pageable);
 
     @Query("select d from Document d where d.id = :id and d.tenant.id = :tenantId and d.deletedAt is null")

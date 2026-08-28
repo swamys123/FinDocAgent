@@ -14,6 +14,10 @@ In progress
 - Refactored authentication to resolve the user from persistence and validate the password hash with BCrypt.
 - Refactored document storage away from the in-memory HashMap into repository-backed persistence.
 - Added a repository-level test for the tenant-scoped user lookup contract.
+- Added tenant-isolation and soft-delete coverage for document repository queries.
+- Added validated document lifecycle transitions and a retry count increment on failure.
+- Added deterministic newest-first ordering and a 100-document bound to document listing.
+- Restored Lombok compile-time configuration required by the entity mappings.
 
 ## Current Limitations
 
@@ -24,9 +28,10 @@ In progress
 
 ## Validation Performed
 
-- Ran `./gradlew test --console=plain` in `findoc-agent`.
+- Ran `./gradlew test --tests com.findoc.entity.DocumentTest --tests com.findoc.repository.DocumentRepositoryTest --console=plain` in `findoc-agent`.
 - Result: `BUILD SUCCESSFUL` and exit code 0.
+- Full test and build validation is pending for this session.
 
 ## Next Implementation Item
 
-Implement the full Postgres-backed document lifecycle and integration tests: verify status transitions, tenant-scoped document queries, and the document upload/list/delete flow against a real Postgres-backed environment before moving into Kafka ingestion.
+Run the full test/build validation, then implement Kafka ingestion that consumes the document lifecycle and persists extraction/chunk results asynchronously.
