@@ -50,11 +50,8 @@ public class DocumentService {
             throw new IllegalArgumentException("File must not be empty");
         }
 
-        User user = userRepository.findById(TenantContext.userId())
+        User user = userRepository.findByIdAndTenantIdAndDeletedAtIsNull(TenantContext.userId(), TenantContext.tenantId())
             .orElseThrow(() -> new NoSuchElementException("User not found"));
-        if (!user.getTenant().getId().equals(TenantContext.tenantId())) {
-            throw new IllegalArgumentException("User does not belong to the current tenant");
-        }
 
         String text = "text/plain".equals(type)
             ? new String(file.getBytes(), StandardCharsets.UTF_8)

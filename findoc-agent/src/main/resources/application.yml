@@ -27,5 +27,9 @@ jwt:
 agent:
   max-iterations: 5
   top-k: 5
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
 management:
   endpoints.web.exposure.include: health,info

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="011-enable-vector" author="copilot">
+        <sql>CREATE EXTENSION IF NOT EXISTS vector;</sql>
+    </changeSet>
+
+    <changeSet id="012-migrate-chunk-vectors" author="copilot">
+        <sql>
+            ALTER TABLE document_chunks
+                ALTER COLUMN embedding TYPE vector(768)
+                USING NULL;
+            ALTER TABLE document_chunks
+                ALTER COLUMN metadata TYPE JSONB
+                USING CASE WHEN metadata IS NULL THEN NULL ELSE metadata::jsonb END;
+        </sql>
+    </changeSet>
+
+    <changeSet id="013-index-chunk-vectors" author="copilot">
+        <sql>
+            CREATE INDEX idx_document_chunks_embedding_cosine
+                ON document_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+        </sql>
+    </changeSet>
+</databaseChangeLog>
