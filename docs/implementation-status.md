@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Asynchronous ingestion and Spring-owned bounded retry/DLQ handling are implemented; PostgreSQL/Kafka runtime validation remains.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, lifecycle validation, Spring-owned retry/DLQ configuration, and focused tests.
-- Pending: PostgreSQL/pgvector and Kafka integration validation, stronger ingestion tests, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew clean test --console=plain` and focused Kafka retry/DLQ tests pass in `findoc-agent`; PostgreSQL/Kafka runtime validation remains.
-- Next item: Complete remaining upload/idempotency ingestion tests and run PostgreSQL/pgvector plus Kafka integration validation.
+- Status: Agent generation, session persistence, and audit tracing are being implemented; PostgreSQL/Kafka runtime validation remains the next integration gate.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, and OpenRouter-backed generation fallback.
+- Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion tests, remaining API contracts, MDC tracing, and broader tests.
+- Validation: Focused agent regression tests and the project test suite have passed for the new generation path; PostgreSQL/Kafka runtime validation remains.
+- Next item: Complete the remaining upload/idempotency ingestion tests and run PostgreSQL/pgvector plus Kafka integration validation.
 
 ## Stories and Phases
 
@@ -23,7 +23,7 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | In progress | Add ingestion service tests and validate PostgreSQL/Kafka |
 
-| Story 004 | Planned: agent retrieval and audit trace | Planned | Complete API contracts and integration tests |
+| Story 004 | [Agent generation and audit trace](story-004-agent-generation.md) | In progress | Complete API contracts and integration tests |
 
 | Story 005 | [Developer runbook and endpoint validation](story-005-dev-runbook.md) | Complete | Keep the runbook aligned with evolving API and infrastructure changes |
 

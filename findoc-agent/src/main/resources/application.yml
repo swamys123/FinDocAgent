@@ -44,6 +44,10 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
   base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+openrouter:
+  api-key: ${OPENROUTER_API_KEY:}
+  model: ${OPENROUTER_MODEL:mistralai/mistral-7b-instruct:free}
+  base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai}
 findoc:
   ingestion:
     topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}
