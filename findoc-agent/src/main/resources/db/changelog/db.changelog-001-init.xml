@@ -199,7 +199,7 @@
             <column name="tenant_id" value="00000000-0000-0000-0000-000000000001"/>
             <column name="username" value="demo@findoc.local"/>
             <column name="email" value="demo@findoc.local"/>
-            <column name="password_hash" value="$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCi.sMKMTxGiRm3/zI/XtGi"/>
+            <column name="password_hash" value="$2b$12$V5X/xLpkgnkf2wOpOeqFD.Lk9UvCVsawzxxhqGg.iZkc91Tn7LThK"/>
             <column name="role" value="USER"/>
         </insert>
     </changeSet>

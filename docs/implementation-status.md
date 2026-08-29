@@ -4,9 +4,9 @@ This file is the authoritative starting point for implementation work across ses
 
 ## Current Phase
 - Status: Agent generation, session persistence, and audit tracing are being implemented; PostgreSQL/Kafka runtime validation remains the next integration gate.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, OpenRouter-backed generation fallback, and the PostgreSQL BYTEA/OID schema mismatch fix for document sources.
-- Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion tests, remaining API contracts, MDC tracing, and broader tests.
-- Validation: Focused agent regression tests and the project test suite have passed for the new generation path; PostgreSQL runtime boot validation is being rechecked after the blob mapping fix.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, OpenRouter-backed generation fallback, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, and request-scoped MDC tracing for trace_id/tenant_id/user_id.
+- Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion tests, remaining API contracts, and broader tests.
+- Validation: Focused agent regression tests and the project test suite have passed for the new generation path; PostgreSQL runtime boot validation is being rechecked after the blob mapping fix; the new MDC trace regression is passing after the filter fix.
 - Next item: Re-run the app startup against PostgreSQL and continue with Kafka integration validation once the runtime stack is green.
 
 ## Stories and Phases

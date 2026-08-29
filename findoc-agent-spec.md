@@ -246,7 +246,7 @@ INSERT INTO users (id, tenant_id, username, password, role) VALUES
     ('00000000-0000-0000-0000-000000000002',
      '00000000-0000-0000-0000-000000000001',
      'demo@findoc.local',
-     '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCi.sMKMTxGiRm3/zI/XtGi',  -- password: demo123
+     '$2b$12$V5X/xLpkgnkf2wOpOeqFD.Lk9UvCVsawzxxhqGg.iZkc91Tn7LThK',  -- password: demo123
      'USER');
 ```
 
