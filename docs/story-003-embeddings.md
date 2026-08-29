@@ -14,6 +14,7 @@ In progress
 - Updated agent queries to embed the query and use semantic retrieval while preserving the five-iteration limit.
 - Enforced tenant-scoped user lookup during upload.
 - Added PostgreSQL BYTEA source persistence so uploads can be processed after the request returns.
+- Fixed the PostgreSQL schema mismatch by aligning the DocumentSource blob mapping with the BYTEA column type used in Liquibase.
 - Added Kafka ingestion wiring, PDFBox extraction, Gemini embedding persistence, idempotent chunk replacement, lifecycle transitions, and bounded retry/DLQ recovery.
 - Added explicit attempt tracking to ingestion jobs and verified listener delegation, confirmed publication failures, and bounded Spring Kafka retry/DLQ ownership in focused tests.
 - Persisted extracted PDF page counts during successful ingestion.

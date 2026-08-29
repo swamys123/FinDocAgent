@@ -23,8 +23,7 @@ public class DocumentSource {
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
 
-    @Lob
-    @Column(name = "content", nullable = false)
+    @Column(name = "content", nullable = false, columnDefinition = "BYTEA")
     private byte[] content;
 
     @Column(name = "created_at", nullable = false, updatable = false)
