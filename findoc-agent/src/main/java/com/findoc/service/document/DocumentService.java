@@ -81,6 +81,15 @@ public class DocumentService {
         return response(document, document.getStatus().name(), chunkCount(document.getId()));
     }
 
+    @Transactional(readOnly = true)
+    public byte[] download(UUID id) {
+        Document document = documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, TenantContext.tenantId())
+            .orElseThrow(() -> new NoSuchElementException("Document not found"));
+        DocumentSource source = documentSourceRepository.findByDocumentIdAndTenantId(document.getId(), TenantContext.tenantId())
+            .orElseThrow(() -> new IllegalStateException("Document source not found"));
+        return source.getContent();
+    }
+
     @Transactional
     public void delete(UUID id) {
         Document document = documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, TenantContext.tenantId())
