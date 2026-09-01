@@ -2,12 +2,30 @@
 
 ## Current status
 
-Basic sanity is currently verified in this workspace:
+The implementation is now beyond the initial scaffold and includes the main tenant-aware backend flow for document ingestion and agent querying.
 
-- `cd findoc-agent && ./gradlew test --console=plain` completed successfully.
+Verified in this workspace:
+
+- `cd findoc-agent && ./gradlew test --console=plain` passed successfully.
 - `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
 
-This means the project is runnable locally in its current state as long as PostgreSQL is available and the expected environment variables are set.
+Implemented so far:
+
+- Gradle-based Spring Boot 3.2 Java 17 application scaffold
+- Tenant-aware JWT authentication with both `tenant_id` and `user_id` claims
+- Protected document APIs for listing, uploading, checking status, and deleting documents
+- Tenant-scoped persistence and seeded demo tenant/user data
+- Text/PDF extraction with page-count persistence and document source handling
+- Chunking at 512 tokens with 50-token overlap
+- pgvector-backed similarity search using cosine distance (`<=>`) with tenant and document scoping
+- Kafka ingestion producer/consumer wiring with retry/DLQ handling checks
+- Agent query flow with intent classification, vector retrieval, and a five-iteration cap
+- Session and trace persistence scaffolding with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
+- OpenRouter-backed generation fallback and response validation
+
+Current runtime caveat:
+
+- The project is runnable locally in a boot/sanity sense, but real PostgreSQL/pgvector and Kafka integration validation remains the next live environment checkpoint before calling the end-to-end flow completely production-verified.
 
 ## Prerequisites
 

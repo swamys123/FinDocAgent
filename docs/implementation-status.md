@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Agent generation, session persistence, and audit tracing are being implemented; PostgreSQL/Kafka runtime validation remains the next integration gate.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, OpenRouter-backed generation fallback, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, and request-scoped MDC tracing for trace_id/tenant_id/user_id.
-- Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion tests, remaining API contracts, and broader tests.
-- Validation: Focused agent regression tests and the project test suite have passed for the new generation path; PostgreSQL runtime boot validation is being rechecked after the blob mapping fix; the new MDC trace regression is passing after the filter fix.
-- Next item: Re-run the app startup against PostgreSQL and continue with Kafka integration validation once the runtime stack is green.
+- Status: The implementation is in its live integration-validation phase; the app and test suite are green locally, while PostgreSQL/pgvector and Kafka runtime validation remain the next environment-level gate.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable document-source storage, Kafka publication and ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini/OpenRouter response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, and request-scoped MDC tracing for trace_id/tenant_id/user_id.
+- Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion coverage, remaining API contract checks, and broader end-to-end validation.
+- Validation: The project test suite passes locally, and the application boots successfully with Tomcat on port 8080 when the expected environment variables are available.
+- Next item: Re-run the app startup against a live PostgreSQL/pgvector environment and continue with Kafka-based ingestion validation once the runtime stack is green.
 
 ## Stories and Phases
 

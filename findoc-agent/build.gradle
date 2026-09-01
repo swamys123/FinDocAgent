@@ -27,7 +27,26 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:kafka'
     testRuntimeOnly 'com.h2database:h2'
 }
 
-tasks.named('test') { useJUnitPlatform() }
+bootRun{
+    jvmArgs = ['-Xms64m', '-Xmx256m','-XX:+UseSerialGC']    
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    exclude '**/*IntegrationTest.class'
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs the PostgreSQL/Kafka integration tests.'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/integration/**'
+}
