@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Document retrieval is being added to complete the first upload-to-retrieve workflow; PostgreSQL/Kafka runtime validation remains the next integration gate.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, OpenRouter-backed generation fallback, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, request-scoped MDC tracing for trace_id/tenant_id/user_id, and original-file retrieval support via the document download endpoint.
+- Status: The Gemini embedding regression is fixed and verified; the next step is runtime confirmation against the live PostgreSQL/Kafka setup.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, the Gemini model-contract fix for the unsupported default model, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence scaffolding, OpenRouter-backed generation fallback, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, request-scoped MDC tracing for trace_id/tenant_id/user_id, original-file retrieval support via the document download endpoint, and daily log rollover with dated archive naming and no deletion of historical logs.
 - Pending: Real PostgreSQL/pgvector and Kafka runtime validation, stronger ingestion tests, remaining API contracts, and broader integration coverage.
-- Validation: The new document retrieval regression is currently passing locally after adding the service/controller download flow. Full PostgreSQL runtime boot validation remains to be rechecked against the real stack.
-- Next item: Validate the live upload-download path with a running app and continue with Kafka integration validation once the runtime stack is green.
+- Validation: The Logback rollover change compiles cleanly, and the project test suite passed successfully after the update. Runtime archive creation at the next day boundary still needs a live restart across a date change.
+- Next item: Restart the app on a new day boundary and confirm the archived file naming format in the logs directory.
 
 ## Stories and Phases
 
