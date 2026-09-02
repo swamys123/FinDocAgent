@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/findoc
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:swamys123}
+    password: ${DB_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -53,5 +53,14 @@ findoc:
     topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}
     group: ${FINDOC_INGESTION_GROUP:findoc-ingestion}
     dlq: ${FINDOC_INGESTION_DLQ:findoc.ingestion.dlq}
+
+logging:
+  level:
+    root: INFO
+    com.findoc: INFO
+  file:
+    path: ${LOG_PATH:./logs}
+    name: ${LOG_FILE:findoc-agent.log}
+
 management:
   endpoints.web.exposure.include: health,info
