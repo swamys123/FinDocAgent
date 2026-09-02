@@ -6,6 +6,7 @@ In progress
 
 ## Completed Work
 
+- Fixed the Gemini embedding regression by replacing the unsupported default model with the current model name and adding the required 768-dimensional request contract.
 - Added the Gemini embedding boundary using Spring `RestClient` and environment-based configuration.
 - Added ten-second connect and read timeouts and validation for the required 768-dimensional response.
 - Added a Liquibase migration enabling pgvector, migrating chunk embeddings to `vector(768)`, migrating metadata to JSONB, and creating an IVFFlat cosine index.

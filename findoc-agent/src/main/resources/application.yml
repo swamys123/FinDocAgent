@@ -42,7 +42,7 @@ agent:
   top-k: 5
 gemini:
   api-key: ${GEMINI_API_KEY:}
-  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
   base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
 openrouter:
   api-key: ${OPENROUTER_API_KEY:}

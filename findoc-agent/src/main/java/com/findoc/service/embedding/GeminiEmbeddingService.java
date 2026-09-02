@@ -19,7 +19,7 @@ public class GeminiEmbeddingService implements EmbeddingService {
 
     public GeminiEmbeddingService(
             @Value("${gemini.api-key:}") String apiKey,
-            @Value("${gemini.embedding-model:text-embedding-004}") String model,
+            @Value("${gemini.embedding-model:gemini-embedding-001}") String model,
             @Value("${gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl) {
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -42,7 +42,7 @@ public class GeminiEmbeddingService implements EmbeddingService {
         JsonNode response = restClient.post()
             .uri(uriBuilder -> uriBuilder.path("/v1beta/models/{model}:embedContent")
                 .queryParam("key", apiKey).build(model))
-            .body(new GeminiEmbeddingRequest(new GeminiContent(new GeminiPart(content))))
+            .body(new GeminiEmbeddingRequest("models/" + model, DIMENSIONS, new GeminiContent(new GeminiPart(content))))
             .retrieve()
             .body(JsonNode.class);
         JsonNode values = response == null ? null : response.path("embedding").path("values");
@@ -59,7 +59,7 @@ public class GeminiEmbeddingService implements EmbeddingService {
         return embedding;
     }
 
-    private record GeminiEmbeddingRequest(GeminiContent content) {}
+    private record GeminiEmbeddingRequest(String model, int outputDimensionality, GeminiContent content) {}
     private record GeminiContent(GeminiPart[] parts) {
         GeminiContent(GeminiPart part) { this(new GeminiPart[]{part}); }
     }
