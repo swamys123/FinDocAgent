@@ -21,6 +21,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     implementation 'org.liquibase:liquibase-core'
     implementation 'org.postgresql:postgresql'
+    implementation 'org.hibernate.orm:hibernate-vector:6.4.10.Final'
     implementation 'com.pgvector:pgvector:0.1.6'
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'

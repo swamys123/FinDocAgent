@@ -1,9 +1,9 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import com.pgvector.PGvector;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.Instant;
@@ -37,10 +37,11 @@ public class DocumentChunk {
     @Setter
     private Integer tokenCount;
 
-    @JdbcTypeCode(SqlTypes.OTHER)
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    @Array(length = 768)
     @Column(name = "embedding", columnDefinition = "vector(768)")
     @Setter
-    private PGvector embedding;
+    private float[] embedding;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "metadata", columnDefinition = "JSONB")
