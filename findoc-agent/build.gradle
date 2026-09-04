@@ -9,6 +9,39 @@ version = '1.0.0'
 
 java { toolchain { languageVersion = JavaLanguageVersion.of(17) } }
 
+def dotenvFile = file('.env')
+def dotenvValues = [:]
+
+if (dotenvFile.isFile()) {
+    dotenvFile.eachLine { line ->
+        def entry = line.trim()
+        if (entry && !entry.startsWith('#')) {
+            def separator = entry.indexOf('=')
+            if (separator > 0) {
+                def key = entry.substring(0, separator).trim()
+                def value = entry.substring(separator + 1).trim()
+                if (key.matches('[A-Za-z_][A-Za-z0-9_]*')) {
+                    if ((value.startsWith('\"') && value.endsWith('\"')) ||
+                        (value.startsWith("'") && value.endsWith("'"))) {
+                        value = value.substring(1, value.length() - 1)
+                    }
+                    dotenvValues[key] = value
+                }
+            }
+        }
+    }
+}
+
+def localEnvironment = dotenvValues + System.getenv()
+
+tasks.withType(JavaExec).configureEach {
+    environment localEnvironment
+}
+
+tasks.withType(Test).configureEach {
+    environment localEnvironment
+}
+
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
