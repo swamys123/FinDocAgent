@@ -34,6 +34,9 @@ public class Document {
     @Column(name = "file_type", nullable = false, length = 50)
     private String fileType;
 
+    @Column(name = "source_path", length = 1000)
+    private String sourcePath;
+
     @Column(name = "page_count")
     private Integer pageCount;
 
@@ -103,6 +106,14 @@ public class Document {
         return fileType;
     }
 
+    public String getSourcePath() {
+        return sourcePath;
+    }
+
+    public void setSourcePath(String sourcePath) {
+        this.sourcePath = sourcePath;
+    }
+
     public Integer getPageCount() {
         return pageCount;
     }
@@ -116,7 +127,9 @@ public class Document {
     }
 
     public void markProcessing() {
-        requireStatus(Status.PENDING);
+        if (status != Status.PENDING && status != Status.FAILED) {
+            throw new IllegalStateException("Document must be PENDING or FAILED but was " + status);
+        }
         status = Status.PROCESSING;
         errorMessage = null;
     }

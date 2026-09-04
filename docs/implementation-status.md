@@ -3,11 +3,11 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Asynchronous ingestion and Spring-owned bounded retry/DLQ handling are implemented; PostgreSQL/Kafka runtime validation remains.
-- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, tenant-safe cosine retrieval, bounded agent query flow, lifecycle validation, Spring-owned retry/DLQ configuration, and focused tests.
-- Pending: PostgreSQL/pgvector and Kafka integration validation, stronger ingestion tests, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
-- Validation: `./gradlew clean test --console=plain` and focused Kafka retry/DLQ tests pass in `findoc-agent`; PostgreSQL/Kafka runtime validation remains.
-- Next item: Complete remaining upload/idempotency ingestion tests and run PostgreSQL/pgvector plus Kafka integration validation.
+- Status: Foundation and persistence POC slices complete; asynchronous Kafka ingestion is implemented and embeddings are next.
+- Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, asynchronous Kafka ingestion, PDF/text extraction, chunking, bounded agent query flow, document lifecycle validation, and focused tests.
+- Pending: pgvector/Gemini retrieval, OpenRouter generation, sessions/traces, remaining API contracts, MDC tracing, and broader tests.
+- Validation: `./gradlew clean test` passed in `findoc-agent` after the Kafka ingestion implementation.
+- Next item: Implement Story 003, asynchronous Kafka ingestion and embeddings.
 
 ## Stories and Phases
 
@@ -19,9 +19,9 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 001 | [Gradle foundation and core API slice](story-001-gradle-foundation.md) | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
-| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | Complete for current POC; PostgreSQL validation remains | Maintain tenant-scoped persistence |
+| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | In progress | Add Gemini embeddings and pgvector retrieval |
 
-| Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | In progress | Add ingestion service tests and validate PostgreSQL/Kafka |
+| Story 003 | Planned: asynchronous ingestion and embeddings | In progress | Add Gemini embeddings and pgvector retrieval |
 
 | Story 004 | Planned: agent retrieval and audit trace | Planned | Complete API contracts and integration tests |
 
