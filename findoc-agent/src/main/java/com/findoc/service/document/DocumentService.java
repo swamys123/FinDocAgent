@@ -2,12 +2,15 @@ package com.findoc.service.document;
 
 import com.findoc.dto.response.DocumentResponse;
 import com.findoc.entity.Document;
+import com.findoc.entity.DocumentSource;
 import com.findoc.entity.DocumentChunk;
-import com.findoc.entity.Tenant;
 import com.findoc.entity.User;
-import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentRepository;
+import com.findoc.repository.DocumentChunkRepository;
+import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.repository.UserRepository;
+import com.findoc.messaging.IngestionJob;
+import com.findoc.messaging.IngestionProducer;
 import com.findoc.util.TenantContext;
 import com.findoc.messaging.IngestionMessage;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,16 +32,15 @@ import java.util.UUID;
 public class DocumentService {
     private static final int MAX_DOCUMENTS_PER_LIST = 100;
 
-    private final ChunkingService chunkingService;
     private final DocumentRepository documentRepository;
     private final DocumentChunkRepository documentChunkRepository;
+    private final DocumentSourceRepository documentSourceRepository;
     private final UserRepository userRepository;
     private final KafkaTemplate<String, IngestionMessage> kafkaTemplate;
     private final Path uploadDirectory;
     private final String ingestionTopic;
 
-    public DocumentService(ChunkingService chunkingService,
-                          DocumentRepository documentRepository,
+    public DocumentService(DocumentRepository documentRepository,
                           DocumentChunkRepository documentChunkRepository,
                           UserRepository userRepository,
                           KafkaTemplate<String, IngestionMessage> kafkaTemplate,
@@ -47,6 +49,7 @@ public class DocumentService {
         this.chunkingService = chunkingService;
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
+        this.documentSourceRepository = documentSourceRepository;
         this.userRepository = userRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.uploadDirectory = Path.of(uploadDirectory);
@@ -63,7 +66,7 @@ public class DocumentService {
             throw new IllegalArgumentException("File must not be empty");
         }
 
-        User user = userRepository.findById(TenantContext.userId())
+        User user = userRepository.findByIdAndTenantIdAndDeletedAtIsNull(TenantContext.userId(), TenantContext.tenantId())
             .orElseThrow(() -> new NoSuchElementException("User not found"));
         if (!user.getTenant().getId().equals(TenantContext.tenantId())) {
             throw new IllegalArgumentException("User does not belong to the current tenant");
@@ -86,7 +89,7 @@ public class DocumentService {
         return documentRepository.findByTenantIdAndDeletedAtIsNull(
             TenantContext.tenantId(), PageRequest.of(0, MAX_DOCUMENTS_PER_LIST))
             .stream()
-            .map(document -> response(document, document.getStatus().name(), documentChunkRepository.findByDocumentIdAndTenantIdOrderByChunkIndexAsc(document.getId(), TenantContext.tenantId()).size()))
+            .map(document -> response(document, document.getStatus().name(), chunkCount(document.getId())))
             .toList();
     }
 
@@ -94,7 +97,7 @@ public class DocumentService {
     public DocumentResponse status(UUID id) {
         Document document = documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, TenantContext.tenantId())
             .orElseThrow(() -> new NoSuchElementException("Document not found"));
-        return response(document, document.getStatus().name(), documentChunkRepository.findByDocumentIdAndTenantIdOrderByChunkIndexAsc(document.getId(), TenantContext.tenantId()).size());
+        return response(document, document.getStatus().name(), chunkCount(document.getId()));
     }
 
     @Transactional
@@ -113,6 +116,10 @@ public class DocumentService {
             .stream()
             .map(DocumentChunk::getContent)
             .toList();
+    }
+
+    private int chunkCount(UUID documentId) {
+        return Math.toIntExact(documentChunkRepository.countByDocumentIdAndTenantId(documentId, TenantContext.tenantId()));
     }
 
     private DocumentResponse response(Document document, String status, int chunkCount) {

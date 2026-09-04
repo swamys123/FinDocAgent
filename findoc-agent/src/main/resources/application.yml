@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/findoc
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD:swamys123}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
@@ -17,6 +17,19 @@ spring:
         format_sql: true
   liquibase:
     change-log: classpath:/db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.findoc.messaging
+        spring.json.value.default.type: com.findoc.messaging.IngestionJob
+    listener:
+      ack-mode: record
   servlet:
     multipart:
       max-file-size: 20MB
@@ -48,5 +61,14 @@ jwt:
 agent:
   max-iterations: 5
   top-k: 5
+gemini:
+  api-key: ${GEMINI_API_KEY:}
+  embedding-model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+  base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+findoc:
+  ingestion:
+    topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}
+    group: ${FINDOC_INGESTION_GROUP:findoc-ingestion}
+    dlq: ${FINDOC_INGESTION_DLQ:findoc.ingestion.dlq}
 management:
   endpoints.web.exposure.include: health,info

@@ -6,4 +6,6 @@
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
 
     <include file="classpath:/db/changelog/db.changelog-001-init.xml"/>
+    <include file="classpath:/db/changelog/db.changelog-002-vector.xml"/>
+    <include file="classpath:/db/changelog/db.changelog-003-ingestion.xml"/>
 </databaseChangeLog>

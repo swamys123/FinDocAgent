@@ -118,6 +118,10 @@ public class Document {
         return pageCount;
     }
 
+    public void setPageCount(Integer pageCount) {
+        this.pageCount = pageCount;
+    }
+
     public Status getStatus() {
         return status;
     }
@@ -143,6 +147,24 @@ public class Document {
         status = Status.FAILED;
         errorMessage = message;
         retryCount++;
+    }
+
+    public void resetForRetry() {
+        requireStatus(Status.FAILED);
+        status = Status.PENDING;
+    }
+
+    public void recordFailure(String message, boolean exhausted) {
+        if (status != Status.PENDING && status != Status.PROCESSING) {
+            throw new IllegalStateException("Document cannot fail from status " + status);
+        }
+        retryCount++;
+        errorMessage = message;
+        if (exhausted) {
+            status = Status.FAILED;
+        } else {
+            status = Status.PENDING;
+        }
     }
 
     public void setStatus(Status status) {

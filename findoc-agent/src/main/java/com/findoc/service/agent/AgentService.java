@@ -2,8 +2,11 @@ package com.findoc.service.agent;
 
 import com.findoc.dto.request.AgentQueryRequest;
 import com.findoc.dto.response.AgentResponse;
-import com.findoc.service.document.DocumentService;
+import com.findoc.entity.DocumentChunk;
+import com.findoc.repository.DocumentChunkRepository;
+import com.findoc.service.embedding.EmbeddingService;
 import com.findoc.util.TenantContext;
+import com.pgvector.PGvector;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -11,14 +14,17 @@ import java.util.*;
 
 @Service
 public class AgentService {
-    private final DocumentService documentService;
+    private final DocumentChunkRepository chunkRepository;
+    private final EmbeddingService embeddingService;
     private final int maxIterations;
     private final int topK;
 
-    public AgentService(DocumentService documentService,
+    public AgentService(DocumentChunkRepository chunkRepository,
+                        EmbeddingService embeddingService,
                         @Value("${agent.max-iterations:5}") int maxIterations,
                         @Value("${agent.top-k:5}") int topK) {
-        this.documentService = documentService;
+        this.chunkRepository = chunkRepository;
+        this.embeddingService = embeddingService;
         this.maxIterations = Math.min(maxIterations, 5);
         this.topK = topK;
     }
@@ -27,11 +33,11 @@ public class AgentService {
         List<UUID> ids = request.documentIds() == null ? List.of() : request.documentIds();
         List<String> steps = new ArrayList<>();
         steps.add("classify_intent");
-        List<String> sourceChunks = new ArrayList<>();
-        for (UUID id : ids) {
-            sourceChunks.addAll(documentService.chunks(id));
-            if (sourceChunks.size() >= topK) break;
-        }
+        PGvector queryEmbedding = new PGvector(embeddingService.embed(request.query()));
+        List<DocumentChunk> matches = ids.isEmpty()
+            ? chunkRepository.searchSimilar(queryEmbedding, TenantContext.tenantId(), topK)
+            : chunkRepository.searchSimilarInDocuments(queryEmbedding, TenantContext.tenantId(), ids, topK);
+        List<String> sourceChunks = matches.stream().map(DocumentChunk::getContent).toList();
         steps.add("vector_search");
         steps.add("generate_report");
         String answer = sourceChunks.isEmpty() ? "No indexed content matched the query." : "Relevant content found in " + Math.min(sourceChunks.size(), topK) + " chunks.";

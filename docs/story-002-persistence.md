@@ -1,7 +1,7 @@
 # Story 002: Persistence and Tenant Isolation
 
 ## Status
-In progress
+Complete for current POC; runtime integration validation remains
 
 ## Completed Work
 

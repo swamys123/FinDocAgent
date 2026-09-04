@@ -25,6 +25,8 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 004 | Planned: agent retrieval and audit trace | Planned | Complete API contracts and integration tests |
 
+| Story 005 | [Developer runbook and endpoint validation](story-005-dev-runbook.md) | Complete | Keep the runbook aligned with evolving API and infrastructure changes |
+
 ## Priority Order
 
 1. PostgreSQL/Liquibase schema, UUID entities, tenant-scoped repositories, and replacement of in-memory storage. (POC complete; real-Postgres integration validation remains.)
