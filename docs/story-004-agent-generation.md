@@ -22,15 +22,19 @@ In progress
 
 - Validate the actual OpenRouter response contract and failure handling under real credentials.
 - Add controller/API-contract coverage for query, session-history, trace-explanation, and comparison endpoints.
-- Add MDC trace logging and request-scoped tenant IDs across the agent flow. Request MDC infrastructure exists, but its agent-flow coverage needs validation.
-- Run PostgreSQL/pgvector and Kafka integration validation against a real stack.
+- Complete provider circuit-breaker failure-path tests and validate Gemini/OpenRouter behavior with real provider responses.
+- Add controller/API-contract coverage for query, comparison, session history, trace explanation, upload, download, status, list, and delete endpoints.
+- Run PostgreSQL/pgvector and Kafka workflow validation against a real stack.
+- Add OpenAPI documentation and operational circuit-breaker metrics if required by deployment consumers.
 
 ## Validation Performed
 
 - `./gradlew test --tests com.findoc.service.agent.AgentServiceTest --console=plain` passed after the agent-generation updates.
 - The focused generation/session regression now confirms the new flow operates as expected in unit test conditions.
 - The focused agent-service suite passed after adding structured citations, trace/session lookup methods, and document comparison.
+- Provider resilience compilation, focused circuit-breaker/Gemini tests, and the full `./gradlew clean test --console=plain` suite pass. OpenRouter provider failure-path tests and full workflow validation remain pending.
+- The integration task is currently blocked before execution because Testcontainers cannot find a Docker-compatible client while the Podman remote socket is unavailable.
 
 ## Next Implementation Item
 
-Add web-layer contract tests, then validate the full agent workflow against PostgreSQL/pgvector, Kafka, and real OpenRouter credentials.
+Run full unit validation and PostgreSQL/pgvector/Kafka workflow validation, then add API contract and provider failure-path coverage.

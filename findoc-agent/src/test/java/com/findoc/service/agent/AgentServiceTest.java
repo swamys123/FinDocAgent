@@ -18,7 +18,6 @@ import com.findoc.repository.SessionMessageRepository;
 import com.findoc.repository.UserRepository;
 import com.findoc.service.embedding.EmbeddingService;
 import com.findoc.util.TenantContext;
-import com.pgvector.PGvector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -75,7 +74,7 @@ class AgentServiceTest {
         chunk.setEmbedding(new float[768]);
         chunk.setMetadata("{\"pageNumber\": 1}");
         when(embeddingService.embed(any(String.class))).thenReturn(new float[768]);
-        when(chunkRepository.searchSimilar(any(PGvector.class), any(UUID.class), any(Integer.class))).thenReturn(List.of(chunk));
+        when(chunkRepository.searchSimilar(any(float[].class), any(UUID.class), any(Integer.class))).thenReturn(List.of(chunk));
         when(userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)).thenReturn(java.util.Optional.of(user));
         when(sessionRepository.save(any())).thenAnswer(invocation -> {
             Object value = invocation.getArgument(0);
@@ -128,7 +127,7 @@ class AgentServiceTest {
         when(documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(documentB.getId(), tenantId)).thenReturn(java.util.Optional.of(documentB));
         when(userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)).thenReturn(java.util.Optional.of(user));
         when(embeddingService.embed("termination clauses")).thenReturn(new float[768]);
-        when(chunkRepository.searchSimilarInDocuments(any(PGvector.class), any(UUID.class), any(List.class), any(Integer.class)))
+        when(chunkRepository.searchSimilarInDocuments(any(float[].class), any(UUID.class), any(List.class), any(Integer.class)))
             .thenReturn(List.of(chunkA), List.of(chunkB));
         when(sessionRepository.save(any())).thenAnswer(invocation -> {
             AgentSession session = invocation.getArgument(0);
@@ -155,7 +154,7 @@ class AgentServiceTest {
         assertThat(response.differences()).containsExactly("Document B requires longer notice.");
         assertThat(response.documentASources()).singleElement().extracting(source -> source.documentId()).isEqualTo(documentA.getId());
         assertThat(response.documentBSources()).singleElement().extracting(source -> source.documentId()).isEqualTo(documentB.getId());
-        verify(chunkRepository, org.mockito.Mockito.times(2)).searchSimilarInDocuments(any(PGvector.class), any(UUID.class), any(List.class), any(Integer.class));
+        verify(chunkRepository, org.mockito.Mockito.times(2)).searchSimilarInDocuments(any(float[].class), any(UUID.class), any(List.class), any(Integer.class));
     }
 
     private void setId(Object entity, UUID id) throws Exception {

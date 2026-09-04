@@ -27,17 +27,19 @@ In progress
 
 - Validate the Kafka ingestion pipeline against real Kafka and PostgreSQL with pgvector.
 - Add remaining focused upload-service, idempotency, extraction-failure, and persistence-level lifecycle tests.
-- Add source IDs and similarity scores to the agent response contract.
-- Implement OpenRouter generation, sessions, traces, comparison, MDC tracing, OpenAPI, and Docker Compose in later phases.
+- Validate the Kafka ingestion pipeline against real Kafka and PostgreSQL with pgvector.
+- Add remaining focused upload-service, idempotency, extraction-failure, and persistence-level lifecycle tests.
+- Complete provider failure-path tests and live Gemini validation.
 
 ## Validation Performed
 
 - `./gradlew clean test --console=plain` passed in `findoc-agent`.
 - Clean Java compilation passed after the vector and Gemini changes.
 - Existing H2 repository tests and the focused document lifecycle test remain passing; native `<=>` retrieval and BYTEA/Liquibase behavior still require PostgreSQL with pgvector for integration validation.
+- `./gradlew integrationTest --console=plain` could not start Testcontainers because the Podman remote socket is unavailable; PostgreSQL/pgvector and Kafka workflow validation remains pending.
 - Focused messaging and document-ingestion tests passed, including producer confirmation, listener propagation, lifecycle processing, page-count persistence, owner isolation, and embedding failure behavior.
 - Full test suite passed after the pgvector `float[]` mapping fix; the new `persistsChunkEmbeddingAsNativeFloatArray` regression confirms embedding values reach the repository as native `float[]`.
 
 ## Next Implementation Item
 
-Run PostgreSQL/Kafka integration validation and complete the remaining upload/idempotency tests before starting OpenRouter generation.
+Run PostgreSQL/pgvector/Kafka workflow validation and complete the remaining ingestion and persistence tests.

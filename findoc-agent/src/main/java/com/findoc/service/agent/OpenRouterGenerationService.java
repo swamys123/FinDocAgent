@@ -2,6 +2,8 @@ package com.findoc.service.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.findoc.service.ProviderCircuitBreaker;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -17,11 +19,19 @@ public class OpenRouterGenerationService {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final ProviderCircuitBreaker circuitBreaker;
 
+    public OpenRouterGenerationService(String apiKey, String model, String baseUrl) {
+        this(apiKey, model, baseUrl, 3, 30);
+    }
+
+    @Autowired
     public OpenRouterGenerationService(
         @Value("${openrouter.api-key:}") String apiKey,
         @Value("${openrouter.model:mistralai/mistral-7b-instruct:free}") String model,
-        @Value("${openrouter.base-url:https://openrouter.ai}") String baseUrl) {
+        @Value("${openrouter.base-url:https://openrouter.ai}") String baseUrl,
+        @Value("${openrouter.circuit-breaker.failure-threshold:3}") int failureThreshold,
+        @Value("${openrouter.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds) {
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -33,6 +43,7 @@ public class OpenRouterGenerationService {
             .build();
         this.apiKey = apiKey;
         this.model = model;
+        this.circuitBreaker = new ProviderCircuitBreaker(failureThreshold, Duration.ofSeconds(openDurationSeconds));
     }
 
     public String generate(String query, String intent, List<String> sources) {
@@ -40,6 +51,14 @@ public class OpenRouterGenerationService {
             return summarizeLocally(query, intent, sources);
         }
 
+        try {
+            return circuitBreaker.execute(() -> generateFromProvider(query, intent, sources));
+        } catch (RuntimeException exception) {
+            return summarizeLocally(query, intent, sources);
+        }
+    }
+
+    private String generateFromProvider(String query, String intent, List<String> sources) {
         JsonNode response = restClient.post()
             .uri("/api/v1/chat/completions")
             .header("Authorization", "Bearer " + apiKey)
@@ -63,7 +82,9 @@ public class OpenRouterGenerationService {
         if (apiKey.isBlank()) {
             return localComparison(aspect, documentASources, documentBSources);
         }
-        JsonNode response = restClient.post()
+        JsonNode response;
+        try {
+            response = circuitBreaker.execute(() -> restClient.post()
             .uri("/api/v1/chat/completions")
             .header("Authorization", "Bearer " + apiKey)
             .header("HTTP-Referer", "https://localhost")
@@ -73,7 +94,10 @@ public class OpenRouterGenerationService {
                 List.of(new Message("user", comparisonPrompt(aspect, documentASources, documentBSources)))
             ))
             .retrieve()
-            .body(JsonNode.class);
+            .body(JsonNode.class));
+        } catch (RuntimeException exception) {
+            return localComparison(aspect, documentASources, documentBSources);
+        }
         String content = response == null ? "" : response.path("choices").path(0).path("message").path("content").asText();
         try {
             JsonNode result = objectMapper.readTree(stripCodeFence(content));

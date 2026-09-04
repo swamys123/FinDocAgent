@@ -44,10 +44,16 @@ gemini:
   api-key: ${GEMINI_API_KEY:}
   embedding-model: ${GEMINI_EMBEDDING_MODEL:gemini-embedding-001}
   base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+  circuit-breaker:
+    failure-threshold: ${GEMINI_CIRCUIT_FAILURE_THRESHOLD:3}
+    open-duration-seconds: ${GEMINI_CIRCUIT_OPEN_DURATION_SECONDS:30}
 openrouter:
   api-key: ${OPENROUTER_API_KEY:}
   model: ${OPENROUTER_MODEL:mistralai/mistral-7b-instruct:free}
   base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai}
+  circuit-breaker:
+    failure-threshold: ${OPENROUTER_CIRCUIT_FAILURE_THRESHOLD:3}
+    open-duration-seconds: ${OPENROUTER_CIRCUIT_OPEN_DURATION_SECONDS:30}
 findoc:
   ingestion:
     topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}

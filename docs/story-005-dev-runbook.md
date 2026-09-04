@@ -22,4 +22,4 @@ Complete
 
 ## Next Implementation Item
 
-Keep the runbook current as the project evolves, especially when adding multipart ingestion, Kafka, pgvector validation, and the final OpenRouter/trace features.
+Keep the runbook current as the project evolves, especially when documenting live Kafka/pgvector validation, provider resilience settings, and API contract changes.
