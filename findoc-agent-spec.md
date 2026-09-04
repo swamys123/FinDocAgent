@@ -10,9 +10,11 @@
 FinDoc Agent is a production-quality backend POC that accepts PDF and text documents, indexes them using vector embeddings, and answers natural language queries using an agentic reasoning loop — not just a single RAG call. The agent decides which tools to invoke (vector search, metadata lookup, document comparison, report generation) based on user intent, producing structured, auditable responses.
 
 **Target personas (Singapore market):**
-- Fintech companies (DBS, Grab Financial, SeaMoney) — contract and compliance document review
-- GovTech / public sector — policy document Q&A
-- SI firms (NCS, Accenture SG) — white-label document intelligence
+- Financial-services organizations — contract and compliance document review
+- Public-sector organizations — policy document Q&A
+- Systems-integration firms — white-label document intelligence
+
+All organization names, account identifiers, UUIDs, and credentials in this document are fictional local-demo examples. They must not be replaced with production data or personal information.
 
 ---
 
@@ -26,7 +28,7 @@ FinDoc Agent is a production-quality backend POC that accepts PDF and text docum
 | FR-02 | Each uploaded document SHALL be assigned a UUID and stored with metadata (filename, upload time, tenant ID, page count, status) |
 | FR-03 | Document ingestion SHALL be asynchronous — the upload endpoint returns a job ID immediately |
 | FR-04 | System SHALL chunk documents into segments of ~512 tokens with a 50-token overlap |
-| FR-05 | Each chunk SHALL be embedded using Gemini text-embedding-004 (768 dimensions) and stored in pgvector |
+| FR-05 | Each chunk SHALL be embedded using the configured Gemini embedding model (default: `gemini-embedding-001`) and stored in pgvector |
 | FR-06 | System SHALL expose a status endpoint to poll ingestion progress (PENDING → PROCESSING → READY → FAILED) |
 | FR-07 | System SHALL support listing all documents scoped to the authenticated tenant |
 | FR-08 | System SHALL support soft-deleting a document and its associated chunks |
@@ -37,9 +39,9 @@ FinDoc Agent is a production-quality backend POC that accepts PDF and text docum
 |----|-------------|
 | FR-09 | System SHALL accept a natural language query with an optional document scope (one doc, a list, or all docs in tenant) |
 | FR-10 | System SHALL classify query intent: LOOKUP, COMPARE, SUMMARISE, or REPORT |
-| FR-11 | Agent loop SHALL select and invoke tools based on intent (see Tool Definitions, §2.4) |
-| FR-12 | Agent SHALL support a maximum of 5 tool-call iterations per query to prevent infinite loops |
-| FR-13 | System SHALL return a structured JSON response: answer, sources (chunk IDs + scores), steps_taken, and confidence |
+| FR-11 | Delivered: the query flow SHALL classify intent, retrieve tenant-scoped vector matches, and generate a grounded answer. Dynamic LLM-selected tool invocation is future work. |
+| FR-12 | Agent configuration SHALL enforce a maximum of 5 iterations. The current flow completes one retrieval/generation sequence. |
+| FR-13 | System SHALL return a structured JSON response: answer, sources (chunk IDs + scores), ordered stage names, and confidence |
 | FR-14 | System SHALL maintain a session context so follow-up questions can reference prior answers |
 | FR-15 | System SHALL expose a /explain endpoint that returns the full agent trace for a given query ID |
 
@@ -51,9 +53,9 @@ FinDoc Agent is a production-quality backend POC that accepts PDF and text docum
 | FR-17 | System SHALL retrieve the top-k relevant chunks from each document independently |
 | FR-18 | System SHALL produce a structured diff-style response: similarities, differences, and a summary |
 
-### 2.4 Agent Tool Definitions
+### 2.4 Future Agent Tool Definitions
 
-The agent has access to the following tools, described as function signatures passed to the LLM:
+The following tool interface is a target architecture, not a currently delivered LLM function-calling contract:
 
 ```
 vector_search(query: string, document_ids: string[], top_k: int) → Chunk[]
@@ -89,7 +91,7 @@ get_session_history(session_id: string) → Message[]
 |----|-------------|
 | NFR-01 | Vector similarity search SHALL return results within 500ms for a corpus of up to 10,000 chunks |
 | NFR-02 | Document upload endpoint SHALL respond within 200ms (async — does not wait for ingestion) |
-| NFR-03 | Agent query endpoint SHALL respond within 15 seconds (includes up to 5 LLM tool calls) |
+| NFR-03 | Agent query endpoint SHALL respond within 15 seconds under the intended local POC workload |
 
 ### 3.2 Reliability
 | ID | Requirement |
@@ -116,10 +118,10 @@ get_session_history(session_id: string) → Message[]
 ### 3.5 Developer Experience
 | ID | Requirement |
 |----|-------------|
-| NFR-14 | Entire stack SHALL start with a single `docker compose up` command |
+| NFR-14 | Future work: provide a one-command local infrastructure bootstrap. The current workflow requires locally running PostgreSQL and Kafka. |
 | NFR-15 | Application SHALL auto-run Liquibase migrations on startup |
-| NFR-16 | OpenAPI (Swagger UI) SHALL be available at /swagger-ui.html |
-| NFR-17 | A Postman collection or sample curl script SHALL be included for all endpoints |
+| NFR-16 | Future work: add OpenAPI/Swagger UI at `/swagger-ui.html` |
+| NFR-17 | A sample curl script is included at `docs/dev-guide/api-examples.sh`; endpoint coverage should remain aligned with controllers |
 
 ---
 
@@ -131,15 +133,15 @@ get_session_history(session_id: string) → Message[]
 | Framework | Spring Boot 3.2.x | Web, Security, Actuator, Data JPA |
 | Vector DB | PostgreSQL 16 + pgvector 0.7 | Single DB, no extra service |
 | Migrations | Liquibase | Already in your stack |
-| Messaging | Apache Kafka (via Docker) | Async ingestion pipeline |
-| Embeddings | Google Gemini text-embedding-004 | Free tier — 1,500 req/day |
-| LLM | OpenRouter (Mistral-7B-Instruct) | Free tier |
-| PDF Parsing | Apache PDFBox 3.x | Zero cost, no API key |
+| Messaging | Apache Kafka | Locally reachable on port 9092 |
+| Embeddings | Google Gemini `gemini-embedding-001` | Configurable through environment |
+| LLM | OpenRouter `mistralai/mistral-7b-instruct:free` | Configurable through environment |
+| PDF Parsing | Apache PDFBox 3.0.3 | Local extraction |
 | Auth | Spring Security + JJWT | Self-contained for POC |
 | Build | Gradle 8.x | Gradle wrapper, Java 17 toolchain |
-| Container | Docker + Docker Compose | Local dev only |
-| API Docs | SpringDoc OpenAPI 2.x | Auto-generates from annotations |
-| Testing | JUnit 5 + Mockito | Already in your stack |
+| Container | Podman | Used by Testcontainers integration tests |
+| API Docs | Future work | Swagger UI is not currently supplied |
+| Testing | JUnit 5, Mockito, Testcontainers | Unit and integration test support |
 
 ---
 
@@ -195,7 +197,7 @@ CREATE TABLE document_chunks (
     chunk_index  INTEGER NOT NULL,
     content      TEXT NOT NULL,
     token_count  INTEGER,
-    embedding    vector(768),  -- Gemini text-embedding-004 dimension
+    embedding    vector(768),  -- configured Gemini embedding dimension
     metadata     JSONB,        -- page number, section title, etc.
     created_at   TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -263,7 +265,11 @@ INSERT INTO users (id, tenant_id, username, password, role) VALUES
 **POST /auth/token**
 ```json
 // Request
-{ "username": "demo@findoc.local", "password": "demo123" }
+{
+  "tenantId": "00000000-0000-0000-0000-000000000001",
+  "username": "demo@findoc.local",
+  "password": "demo123"
+}
 
 // Response 200
 {
@@ -288,8 +294,11 @@ Body: file=<binary>
 // Response 202 Accepted
 {
   "documentId": "3f7a1b2c-...",
+  "filename": "loan-agreement.pdf",
+  "fileType": "application/pdf",
   "status": "PENDING",
-  "message": "Document queued for ingestion"
+  "chunkCount": 0,
+  "createdAt": "2026-09-04T10:00:00Z"
 }
 ```
 
@@ -299,35 +308,36 @@ Body: file=<binary>
 {
   "documentId": "3f7a1b2c-...",
   "filename": "loan-agreement.pdf",
+  "fileType": "application/pdf",
   "status": "READY",
-  "pageCount": 12,
   "chunkCount": 47,
-  "createdAt": "2026-08-27T10:00:00Z"
+  "createdAt": "2026-09-04T10:00:00Z"
 }
 ```
+
+The ingestion pipeline persists page count for PDF documents, but the current `DocumentResponse` does not expose it.
 
 **GET /documents**
 ```json
 // Response 200
-{
-  "documents": [
-    {
-      "documentId": "3f7a1b2c-...",
-      "filename": "loan-agreement.pdf",
-      "status": "READY",
-      "pageCount": 12,
-      "createdAt": "2026-08-27T10:00:00Z"
-    }
-  ],
-  "total": 1
-}
+[
+  {
+    "documentId": "3f7a1b2c-...",
+    "filename": "loan-agreement.pdf",
+    "fileType": "application/pdf",
+    "status": "READY",
+    "chunkCount": 47,
+    "createdAt": "2026-09-04T10:00:00Z"
+  }
+]
 ```
 
 **DELETE /documents/{id}**
-```json
-// Response 200
-{ "message": "Document deleted", "documentId": "3f7a1b2c-..." }
-```
+Returns `204 No Content`.
+
+**GET /documents/{id}/download**
+
+Returns the original uploaded file as an attachment. The document must belong to the authenticated tenant.
 
 ---
 
@@ -359,11 +369,11 @@ Body: file=<binary>
   ],
   "intent": "LOOKUP",
   "stepsTaken": [
-    { "tool": "vector_search", "input": "penalty clauses", "chunksFound": 5 },
-    { "tool": "generate_report", "format": "summary" }
+    "classify_intent",
+    "vector_search",
+    "generate_report"
   ],
-  "confidence": 0.87,
-  "durationMs": 3241
+  "confidence": 0.75
 }
 ```
 
@@ -385,7 +395,8 @@ Body: file=<binary>
     "Document B includes a 3-month lock-in period absent from Document A"
   ],
   "summary": "The agreements differ significantly in termination rights...",
-  "sources": { "documentA": [...], "documentB": [...] }
+  "documentASources": [...],
+  "documentBSources": [...]
 }
 ```
 
@@ -408,29 +419,18 @@ Body: file=<binary>
   "queryId": "1a2b3c4d-...",
   "query": "What are the penalty clauses?",
   "intent": "LOOKUP",
-  "fullTrace": [
-    {
-      "step": 1,
-      "tool": "vector_search",
-      "input": { "query": "penalty clauses loan agreement", "topK": 5 },
-      "output": { "chunksFound": 5, "topScore": 0.91 },
-      "durationMs": 312
-    },
-    {
-      "step": 2,
-      "tool": "generate_report",
-      "input": { "chunkCount": 5, "format": "summary" },
-      "output": { "answerLength": 420 },
-      "durationMs": 2890
-    }
-  ],
+  "fullTrace": ["classify_intent", "vector_search", "generate_report"],
   "totalDurationMs": 3241
 }
 ```
 
+The current trace records ordered stage names and total duration. Structured per-stage tool inputs, outputs, and timings are future work.
+
 ---
 
-## 7. Component Architecture
+## 7. Delivered Component Architecture
+
+The current flow is controller -> service -> tenant-scoped repository/provider. Uploads persist source data, publish Kafka ingestion work, then extract, chunk, embed, and persist vector data. Agent queries classify intent, retrieve vectors, generate an answer, and persist sessions/traces. The diagram below is a conceptual view; a `ToolRegistry` is future work, not a current component.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -480,7 +480,9 @@ Body: file=<binary>
 
 ---
 
-## 8. Key Service Implementations
+## 8. Historical Design Sketches
+
+The following code snippets illustrate the original target design and are not authoritative implementation references. Current contracts are described in Sections 2, 6, and 7. Dynamic LLM-selected tooling and detailed tool events remain future work.
 
 ### 8.1 ChunkingService
 
@@ -513,7 +515,7 @@ public class ChunkingService {
 public class GeminiEmbeddingService {
 
     private static final String GEMINI_EMBED_URL =
-        "https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent";
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent";
 
     @Value("${gemini.api.key}")
     private String apiKey;
@@ -525,7 +527,7 @@ public class GeminiEmbeddingService {
             .uri(GEMINI_EMBED_URL + "?key=" + apiKey)
             .contentType(MediaType.APPLICATION_JSON)
             .body(Map.of(
-                "model", "models/text-embedding-004",
+                "model", "models/gemini-embedding-001",
                 "content", Map.of("parts", List.of(Map.of("text", text)))
             ))
             .retrieve()
@@ -693,7 +695,9 @@ public void consume(IngestionMessage message, Acknowledgment ack) {
 
 ---
 
-## 10. Docker Compose
+## 10. Future Docker Compose Bootstrap
+
+This compose definition is a future convenience asset and is not currently included in the repository. The supported local workflow uses PostgreSQL on port 5432 and Kafka on port 9092; Podman is used by Testcontainers integration tests.
 
 ```yaml
 # docker-compose.yml
@@ -751,7 +755,9 @@ volumes:
 
 ---
 
-## 11. Application Configuration
+## 11. Historical Application Configuration
+
+The following configuration is an earlier design reference. Use `findoc-agent/src/main/resources/application.yml` and `findoc-agent/.env.example` as the current non-secret configuration references.
 
 ```yaml
 # src/main/resources/application.yml
@@ -834,7 +840,7 @@ logging:
 
 ---
 
-## 12. Gradle `build.gradle` — Key Dependencies
+## 12. Historical Gradle Dependency Sketch
 
 The generated project uses the Gradle Groovy DSL with the Spring Boot plugin and
 the dependency-management plugin. The dependency coordinates below are declared
@@ -868,9 +874,6 @@ dependencies {
   runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
   runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
 
-  // OpenAPI / Swagger
-  implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
-
   // Lombok
   compileOnly 'org.projectlombok:lombok'
   annotationProcessor 'org.projectlombok:lombok'
@@ -885,7 +888,7 @@ dependencies {
 
 ---
 
-## 13. Project Structure
+## 13. Historical Project Structure Sketch
 
 ```
 findoc-agent/
@@ -975,7 +978,9 @@ findoc-agent/
 
 ---
 
-## 14. Sample curl Script (for README demo)
+## 14. Historical Curl Script Sketch
+
+The maintained runnable request workflow is `docs/dev-guide/api-examples.sh`. It supplies the required `tenantId` to the token endpoint and reflects current endpoint contracts.
 
 ```bash
 #!/bin/bash
@@ -1023,7 +1028,9 @@ curl -s "$BASE/agent/explain/$QUERY_ID" \
 
 ---
 
-## 15. Environment Variables (.env for local dev)
+## 15. Local Environment Variables
+
+Copy only the tracked `findoc-agent/.env.example` to a local `.env`. Do not commit, display, or use a real dotenv file as documentation input. Runtime configuration includes database credentials, Kafka bootstrap settings, `JWT_SECRET`, provider settings, circuit-breaker thresholds, and logging paths.
 
 ```bash
 # .env — never commit this file
@@ -1037,40 +1044,34 @@ JWT_SECRET=your-local-dev-secret-at-least-32-characters-long
 ## 16. Getting Started (Local Dev)
 
 ```bash
-# 1. Clone and set environment
+cd findoc-agent
 cp .env.example .env
-# Fill in GEMINI_API_KEY and OPENROUTER_API_KEY
+# Configure local PostgreSQL/Kafka settings and a unique JWT_SECRET.
+# GEMINI_API_KEY and OPENROUTER_API_KEY are needed for live provider validation.
 
-# 2. Start infrastructure
-docker compose up -d
-# Wait ~20 seconds for Kafka and PostgreSQL to be healthy
+./gradlew bootRun --console=plain
 
-# 3. Run the application
-./gradlew bootRun
+# In a second terminal, run the maintained API walkthrough.
+../docs/dev-guide/api-examples.sh
 
-# 4. Open Swagger UI
-open http://localhost:8080/swagger-ui.html
-
-# 5. Run sample demo
-chmod +x scripts/sample-requests.sh
-./scripts/sample-requests.sh
-
-# Build and test without starting the application
-./gradlew test
-./gradlew build
+# Unit and integration checks.
+./gradlew test --console=plain
+./gradlew integrationTest --console=plain
 ```
 
+The integration task requires an accessible Podman socket. Swagger UI is future work; use the developer guide and curl script for the current API workflow.
+
 ---
 
-## 17. What to Highlight in the README (for Singapore Employers)
+## 17. README Highlights
 
-1. **Multi-tenant data isolation** — every vector search is scoped by tenant_id; link to your Wissen migration experience
+1. **Multi-tenant data isolation** — every vector search is scoped by tenant_id.
 2. **Async ingestion via Kafka** — upload returns in <200ms; processing is decoupled with DLQ for resilience
-3. **Agentic loop, not plain RAG** — intent classification + tool-calling loop with a capped iteration guard
-4. **Full auditability** — /explain endpoint returns every agent step and score; critical for fintech compliance
+3. **Bounded retrieval and generation** — intent classification, tenant-scoped retrieval, and a five-iteration configuration guard.
+4. **Auditability** — `/explain` returns recorded query stages and total duration; richer tool-event traces are planned.
 5. **Production patterns** — circuit breakers on external APIs, structured logging with trace IDs, Liquibase migrations, Actuator health checks
-6. **Zero cost** — entire stack runs locally; Gemini free tier + OpenRouter free credits
+6. **Local-first validation** — the application uses local PostgreSQL and Kafka, with provider-backed validation when credentials are injected.
 
 ---
 
-*Spec version: 1.0 | Prepared for FinDoc Agent POC | August 2026*
+*Spec version: 1.1 | Prepared for FinDoc Agent POC | September 2026*

@@ -3,7 +3,7 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Upload, ingestion, chunking, embedding, vector retrieval, structured agent query sources, session history, explain traces, document comparison, provider resilience, and local dotenv loading are implemented or in progress. The immediate execution gate is live PostgreSQL/pgvector and Kafka workflow validation with a populated local `.env`.
+- Status: Upload, ingestion, chunking, embedding, vector retrieval, structured agent query sources, session history, explain traces, document comparison, provider resilience, local dotenv loading, public-documentation alignment, and root-project onboarding documentation are implemented or in progress. The immediate execution gate is live PostgreSQL/pgvector and Kafka workflow validation with a populated local `.env`.
 - Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, Kafka ingestion wiring, PDF/text extraction with page-count persistence, chunking, vector schema, Gemini response validation, the Gemini model-contract fix for the unsupported default model, tenant-safe cosine retrieval, bounded agent query flow, session/trace persistence, structured query citations, OpenRouter-backed generation with structured comparison fallback, tenant-safe document comparison, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, request-scoped MDC tracing for trace_id/tenant_id/user_id, original-file retrieval support via the document download endpoint, daily log rollover with dated archive naming and no deletion of historical logs, the pgvector Hibernate mapping fix for chunk embedding persistence (`float[]` with `SqlTypes.VECTOR` + `hibernate-vector`), local dotenv configuration with a non-secret template and Copilot secret-handling safeguards, and the shared provider circuit-breaker implementation with configurable thresholds and OpenRouter fallback behavior.
 - Pending: Live PostgreSQL/pgvector and Kafka workflow validation; live Gemini/OpenRouter validation; controller/API contract coverage; stronger ingestion and persistence-level tests; provider resilience failure-path coverage; OpenAPI and any required circuit-breaker operational metrics.
 - Validation: `./gradlew compileJava --console=plain`, focused provider tests, and `./gradlew clean test --console=plain` passed. `./gradlew integrationTest --console=plain` is currently blocked during Testcontainers startup because the Podman remote socket is unavailable (`podman info` reports `RemoteSocket.Exists=false`). Live provider validation remains pending. Runtime log archive creation at a date boundary remains an optional follow-up, not the next implementation item.
@@ -30,6 +30,10 @@ This file is the authoritative starting point for implementation work across ses
 | Story 006 | [File-based troubleshooting logging](story-006-file-logging.md) | Complete | Keep the log location aligned with the runtime environment |
 
 | Story 007 | [Local dotenv configuration](story-007-local-dotenv-configuration.md) | Complete | Validate a populated `.env` against the live PostgreSQL/Kafka stack |
+
+| Story 008 | [Root README onboarding](story-008-root-readme-onboarding.md) | Complete | Keep setup and feature documentation aligned with implementation changes |
+
+| Story 009 | [Public documentation alignment](story-009-public-documentation-alignment.md) | Complete | Complete live infrastructure and provider validation |
 
 ## Priority Order
 

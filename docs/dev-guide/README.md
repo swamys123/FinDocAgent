@@ -181,6 +181,14 @@ Sample response:
 }
 ```
 
+### Download the original document
+
+```bash
+curl -i http://localhost:8080/api/v1/documents/0e5dc0a9-f855-4b46-a2b9-6f4d88cee0b9/download \
+  -H "Authorization: Bearer $TOKEN" \
+  -o sample.txt
+```
+
 ### Delete a document
 
 ```bash
@@ -348,5 +356,5 @@ Before you consider a local test successful, confirm:
 ## Notes
 
 - This project is intentionally tenant-scoped. Tokens carry both `tenant_id` and `user_id` claims.
-- The agent query path is guarded by the five-iteration cap configured in `agent.max-iterations`.
+- The agent query path records `classify_intent`, `vector_search`, and `generate_report`; the configured five-iteration cap remains enforced even though dynamic tool selection is future work.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
