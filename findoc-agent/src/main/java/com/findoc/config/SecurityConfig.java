@@ -27,7 +27,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService) throws Exception {
         http.csrf(csrf -> csrf.disable()).sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(a -> a.requestMatchers("/actuator/health", "/api/v1/auth/token", "/swagger-ui/**", "/v3/api-docs/**").permitAll().anyRequest().authenticated())
-            .addFilterBefore(new TenantJwtFilter(jwtService), org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new TenantJwtFilter(jwtService), org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(new MdcTraceFilter(), TenantJwtFilter.class);
         return http.build();
     }
 

@@ -1,0 +1,6 @@
+{
+  "github.copilot.chat.search.exclude": {
+    "**/.env": true,
+    "**/*.env": true
+  }
+}

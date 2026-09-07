@@ -1,7 +1,6 @@
 package com.findoc.repository;
 
 import com.findoc.entity.DocumentChunk;
-import com.pgvector.PGvector;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -27,7 +26,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
                 order by c.embedding <=> cast(:embedding as vector)
                 limit :limit
                 """, nativeQuery = true)
-        List<DocumentChunk> searchSimilar(@Param("embedding") PGvector embedding,
+            List<DocumentChunk> searchSimilar(@Param("embedding") float[] embedding,
                                                                             @Param("tenantId") UUID tenantId,
                                                                             @Param("limit") int limit);
 
@@ -42,7 +41,7 @@ public interface DocumentChunkRepository extends JpaRepository<DocumentChunk, UU
                 order by c.embedding <=> cast(:embedding as vector)
                 limit :limit
                 """, nativeQuery = true)
-        List<DocumentChunk> searchSimilarInDocuments(@Param("embedding") PGvector embedding,
+            List<DocumentChunk> searchSimilarInDocuments(@Param("embedding") float[] embedding,
                                                                                                  @Param("tenantId") UUID tenantId,
                                                                                                  @Param("documentIds") List<UUID> documentIds,
                                                                                                  @Param("limit") int limit);

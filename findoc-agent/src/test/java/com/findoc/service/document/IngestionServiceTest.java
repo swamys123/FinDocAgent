@@ -1,6 +1,7 @@
 package com.findoc.service.document;
 
 import com.findoc.entity.Document;
+import com.findoc.entity.DocumentChunk;
 import com.findoc.entity.DocumentSource;
 import com.findoc.entity.Tenant;
 import com.findoc.entity.User;
@@ -10,6 +11,7 @@ import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.service.embedding.EmbeddingService;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.Optional;
@@ -106,5 +108,45 @@ class IngestionServiceTest {
         assertThat(document.getStatus()).isEqualTo(Document.Status.PROCESSING);
         verify(chunkRepository).deleteByDocumentIdAndTenantId(documentId, tenantId);
         verify(documentRepository, never()).save(document);
+    }
+
+    @Test
+    void persistsChunkEmbeddingAsNativeFloatArray() throws Exception {
+        UUID documentId = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Tenant tenant = mock(Tenant.class);
+        User user = mock(User.class);
+        Document document = new Document(tenant, user, "report.pdf", "application/pdf");
+        DocumentSource source = mock(DocumentSource.class);
+        IngestionJob job = new IngestionJob(documentId, tenantId, userId);
+
+        when(user.getId()).thenReturn(userId);
+        when(documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(documentId, tenantId))
+            .thenReturn(Optional.of(document));
+        when(sourceRepository.findByDocumentIdAndTenantId(documentId, tenantId))
+            .thenReturn(Optional.of(source));
+        when(source.getContent()).thenReturn(new byte[] {1});
+        when(textExtractor.extract("application/pdf", new byte[] {1}))
+            .thenReturn(new DocumentTextExtractor.Extraction("alpha beta", 1));
+        when(chunkingService.chunk("alpha beta")).thenReturn(List.of("alpha", "beta"));
+
+        float[] alphaEmbedding = new float[] {0.1f, 0.2f, 0.3f};
+        float[] betaEmbedding = new float[] {0.4f, 0.5f, 0.6f};
+        when(embeddingService.embed("alpha")).thenReturn(alphaEmbedding);
+        when(embeddingService.embed("beta")).thenReturn(betaEmbedding);
+
+        service.ingest(job);
+
+        ArgumentCaptor<DocumentChunk> captor = ArgumentCaptor.forClass(DocumentChunk.class);
+        verify(chunkRepository, org.mockito.Mockito.times(2)).save(captor.capture());
+
+        assertThat(captor.getAllValues()).hasSize(2);
+        assertThat(captor.getAllValues().get(0).getEmbedding())
+            .isInstanceOf(float[].class)
+            .isEqualTo(alphaEmbedding);
+        assertThat(captor.getAllValues().get(1).getEmbedding())
+            .isInstanceOf(float[].class)
+            .isEqualTo(betaEmbedding);
     }
 }

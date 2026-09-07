@@ -7,7 +7,6 @@ import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.service.embedding.EmbeddingService;
-import com.pgvector.PGvector;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,7 +60,7 @@ public class IngestionService {
             String content = chunks.get(index);
             var chunk = new DocumentChunk(document, document.getTenant(), index, content);
             chunk.setTokenCount(content.split("\\s+").length);
-            chunk.setEmbedding(new PGvector(embeddingService.embed(content)));
+            chunk.setEmbedding(embeddingService.embed(content));
             chunkRepository.save(chunk);
         }
         document.markReady();

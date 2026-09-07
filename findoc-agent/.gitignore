@@ -1,10 +1,13 @@
 .gradle/
 build/
 *.class
+# Local dotenv files can contain secrets; keep the checked-in template visible.
 .env
 *.env
+!.env.example
 .idea/
 *.iml
 .vscode/
 *.log
 bin/
+sampleFiles/

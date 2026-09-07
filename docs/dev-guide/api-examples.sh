@@ -22,14 +22,27 @@ echo
 
 echo "Uploading sample document..."
 printf 'Quarterly risk review: cash flow remains under pressure and margin risk persists.\n' > /tmp/findoc-sample.txt
-curl -sS -X POST "$HOST/api/v1/documents/upload" \
+DOCUMENT_ID=$(curl -sS -X POST "$HOST/api/v1/documents/upload" \
   -H "Authorization: Bearer $TOKEN" \
-  -F "file=@/tmp/findoc-sample.txt"
+  -F "file=@/tmp/findoc-sample.txt" | python3 -c 'import sys, json; print(json.load(sys.stdin)["documentId"])')
+echo "Document ID: $DOCUMENT_ID"
 echo
 
-echo "Querying agent..."
-curl -sS -X POST "$HOST/api/v1/agent/query" \
+echo "Wait for the document to reach READY, then querying agent..."
+read -r -p "Press Enter when document status is READY. "
+QUERY_RESPONSE=$(curl -sS -X POST "$HOST/api/v1/agent/query" \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"query":"Summarize the financial risks","documentIds":[],"sessionId":"11111111-1111-1111-1111-111111111111"}'
+  -d "{\"query\":\"Summarize the financial risks\",\"documentIds\":[\"$DOCUMENT_ID\"]}")
+echo "$QUERY_RESPONSE"
+QUERY_ID=$(printf '%s' "$QUERY_RESPONSE" | python3 -c 'import sys, json; print(json.load(sys.stdin)["queryId"])')
+SESSION_ID=$(printf '%s' "$QUERY_RESPONSE" | python3 -c 'import sys, json; print(json.load(sys.stdin)["sessionId"])')
+echo
+
+echo "Retrieving session history..."
+curl -sS "$HOST/api/v1/agent/sessions/$SESSION_ID" -H "Authorization: Bearer $TOKEN"
+echo
+
+echo "Retrieving query explanation..."
+curl -sS "$HOST/api/v1/agent/explain/$QUERY_ID" -H "Authorization: Bearer $TOKEN"
 echo

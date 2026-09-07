@@ -19,10 +19,18 @@ public final class TenantContext {
         return tenantId;
     }
 
+    public static UUID tenantIdOrNull() {
+        return TENANT.get();
+    }
+
     public static UUID userId() {
         UUID userId = USER.get();
         if (userId == null) throw new IllegalStateException("No user in context");
         return userId;
+    }
+
+    public static UUID userIdOrNull() {
+        return USER.get();
     }
 
     public static void clear() {
