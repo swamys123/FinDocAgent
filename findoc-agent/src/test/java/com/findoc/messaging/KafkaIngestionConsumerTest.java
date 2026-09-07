@@ -16,7 +16,7 @@ class KafkaIngestionConsumerTest {
 
     @Test
     void delegatesSuccessfulJobToIngestionService() throws Exception {
-        IngestionJob job = job(1);
+        IngestionJob job = job();
 
         consumer.consume(job);
 
@@ -25,7 +25,7 @@ class KafkaIngestionConsumerTest {
 
     @Test
     void propagatesIngestionFailureToKafkaErrorHandler() throws Exception {
-        IngestionJob job = job(1);
+        IngestionJob job = job();
         doThrow(new IllegalStateException("embedding unavailable"))
             .when(ingestionService).ingest(job);
 
@@ -34,7 +34,7 @@ class KafkaIngestionConsumerTest {
             .hasMessage("embedding unavailable");
     }
 
-    private IngestionJob job(int attemptNumber) {
-        return new IngestionJob(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), attemptNumber);
+    private IngestionJob job() {
+        return new IngestionJob(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
     }
 }

@@ -17,7 +17,9 @@ In progress
 - Added PostgreSQL BYTEA source persistence so uploads can be processed after the request returns.
 - Fixed the PostgreSQL schema mismatch by aligning the DocumentSource blob mapping with the BYTEA column type used in Liquibase.
 - Added Kafka ingestion wiring, PDFBox extraction, Gemini embedding persistence, idempotent chunk replacement, lifecycle transitions, and bounded retry/DLQ recovery.
-- Added explicit attempt tracking to ingestion jobs and verified listener delegation, confirmed publication failures, and bounded Spring Kafka retry/DLQ ownership in focused tests.
+- Consolidated ingestion on one `IngestionJob` listener and Spring Kafka error-handler path. The handler now applies two configurable exponential retries after the initial delivery before terminal failure recording and DLQ publication.
+- Removed the obsolete file-path ingestion listener and its parallel message contract, eliminating conflicting topic consumption and application-managed attempt metadata.
+- Added document-chunk soft deletion with a Liquibase migration. Document deletion now soft-deletes tenant-scoped chunks, and chunk listing, counts, ingestion replacement, and cosine searches exclude deleted chunks.
 - Persisted extracted PDF page counts during successful ingestion.
 - Added focused ingestion tests for successful lifecycle processing, page-count persistence, owner isolation, and embedding failures.
 - Fixed the pgvector `bytea`/`vector` insert mismatch by switching `DocumentChunk.embedding` from `PGvector` with `SqlTypes.OTHER` to native `float[]` with `SqlTypes.VECTOR`, `@Array(length = 768)`, and the `hibernate-vector` module. Removed the `PGvector` wrapper from the ingestion path while keeping `PGvector` for native similarity query parameters.
@@ -39,6 +41,8 @@ In progress
 - `./gradlew integrationTest --console=plain` could not start Testcontainers because the Podman remote socket is unavailable; PostgreSQL/pgvector and Kafka workflow validation remains pending.
 - Focused messaging and document-ingestion tests passed, including producer confirmation, listener propagation, lifecycle processing, page-count persistence, owner isolation, and embedding failure behavior.
 - Full test suite passed after the pgvector `float[]` mapping fix; the new `persistsChunkEmbeddingAsNativeFloatArray` regression confirms embedding values reach the repository as native `float[]`.
+- `./gradlew test --tests com.findoc.service.document.DocumentServiceTest --console=plain` and `./gradlew test --tests com.findoc.messaging.KafkaIngestionConsumerTest --console=plain` passed after chunk soft-delete and retry-path consolidation.
+- `./gradlew test --console=plain` passed after the combined agent, persistence, and ingestion updates.
 
 ## Next Implementation Item
 

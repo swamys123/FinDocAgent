@@ -51,6 +51,9 @@ public class DocumentChunk {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     protected DocumentChunk() {
     }
 
@@ -60,6 +63,10 @@ public class DocumentChunk {
         this.chunkIndex = chunkIndex;
         this.content = content;
         this.createdAt = Instant.now();
+    }
+
+    public void markDeleted() {
+        this.deletedAt = Instant.now();
     }
 
 }

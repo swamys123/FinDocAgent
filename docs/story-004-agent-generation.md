@@ -17,6 +17,10 @@ In progress
 - Added tenant-safe document comparison: both documents must be distinct, tenant-owned, and `READY`; relevant chunks are retrieved independently for each document.
 - Added structured comparison generation using OpenRouter JSON responses, with a deterministic local fallback that provides a summary, similarities, and differences.
 - Extended focused agent-service coverage for source citations, persisted query IDs, independent comparison retrieval, and structured comparison output.
+- Added session-aware generation: a valid existing session contributes its latest ten tenant/user-scoped messages to the OpenRouter chat context before the current grounded prompt.
+- Changed supplied unknown or unauthorized session IDs from silent new-session creation to a not-found response, preventing lost or substituted conversational context.
+- Replaced the narrow inline intent heuristic with a deterministic `IntentClassifier` covering common comparison, report, and summary synonyms while preserving explicit precedence and `LOOKUP` fallback.
+- Added focused regression coverage for the history window, strict session rejection, and classifier phrase/precedence behavior.
 
 ## Pending Work
 
@@ -32,6 +36,8 @@ In progress
 - `./gradlew test --tests com.findoc.service.agent.AgentServiceTest --console=plain` passed after the agent-generation updates.
 - The focused generation/session regression now confirms the new flow operates as expected in unit test conditions.
 - The focused agent-service suite passed after adding structured citations, trace/session lookup methods, and document comparison.
+- `./gradlew test --tests com.findoc.service.agent.AgentServiceTest --console=plain` and `./gradlew test --tests com.findoc.service.agent.IntentClassifierTest --console=plain` passed after session-context and classifier updates.
+- `./gradlew test --console=plain` passed after the combined agent, persistence, and ingestion updates.
 - Provider resilience compilation, focused circuit-breaker/Gemini tests, and the full `./gradlew clean test --console=plain` suite pass. OpenRouter provider failure-path tests and full workflow validation remain pending.
 - The integration task is currently blocked before execution because Testcontainers cannot find a Docker-compatible client while the Podman remote socket is unavailable.
 

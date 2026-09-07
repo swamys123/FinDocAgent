@@ -2,6 +2,7 @@ package com.findoc.service.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.findoc.entity.SessionMessage;
 import com.findoc.service.ProviderCircuitBreaker;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,18 +48,22 @@ public class OpenRouterGenerationService {
     }
 
     public String generate(String query, String intent, List<String> sources) {
+        return generate(query, intent, sources, List.of());
+    }
+
+    public String generate(String query, String intent, List<String> sources, List<SessionMessage> history) {
         if (apiKey.isBlank()) {
             return summarizeLocally(query, intent, sources);
         }
 
         try {
-            return circuitBreaker.execute(() -> generateFromProvider(query, intent, sources));
+            return circuitBreaker.execute(() -> generateFromProvider(query, intent, sources, history));
         } catch (RuntimeException exception) {
             return summarizeLocally(query, intent, sources);
         }
     }
 
-    private String generateFromProvider(String query, String intent, List<String> sources) {
+    private String generateFromProvider(String query, String intent, List<String> sources, List<SessionMessage> history) {
         JsonNode response = restClient.post()
             .uri("/api/v1/chat/completions")
             .header("Authorization", "Bearer " + apiKey)
@@ -66,7 +71,7 @@ public class OpenRouterGenerationService {
             .header("X-Title", "FinDoc Agent")
             .body(new OpenRouterRequest(
                 model,
-                List.of(new Message("user", buildPrompt(query, intent, sources)))
+                generationMessages(query, intent, sources, history)
             ))
             .retrieve()
             .body(JsonNode.class);
@@ -114,6 +119,13 @@ public class OpenRouterGenerationService {
     private String buildPrompt(String query, String intent, List<String> sources) {
         String context = sources.isEmpty() ? "No sources matched." : String.join("\n\n---\n\n", sources);
         return "You are FinDoc Agent. Answer the user's query using the provided context.\n\nIntent: " + intent + "\n\nQuery: " + query + "\n\nContext:\n" + context;
+    }
+
+    private List<Message> generationMessages(String query, String intent, List<String> sources, List<SessionMessage> history) {
+        List<Message> messages = new java.util.ArrayList<>();
+        history.forEach(message -> messages.add(new Message(message.getRole(), message.getContent())));
+        messages.add(new Message("user", buildPrompt(query, intent, sources)));
+        return List.copyOf(messages);
     }
 
     private String summarizeLocally(String query, String intent, List<String> sources) {

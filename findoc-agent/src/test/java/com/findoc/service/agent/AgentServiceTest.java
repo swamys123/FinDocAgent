@@ -8,6 +8,7 @@ import com.findoc.entity.AgentSession;
 import com.findoc.entity.Document;
 import com.findoc.entity.DocumentChunk;
 import com.findoc.entity.QueryTrace;
+import com.findoc.entity.SessionMessage;
 import com.findoc.entity.Tenant;
 import com.findoc.entity.User;
 import com.findoc.repository.AgentSessionRepository;
@@ -28,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -50,6 +52,7 @@ class AgentServiceTest {
         messageRepository,
         traceRepository,
         generationService,
+        new IntentClassifier(),
         5,
         5
     );
@@ -86,7 +89,7 @@ class AgentServiceTest {
             setId(trace, UUID.randomUUID());
             return trace;
         });
-        when(generationService.generate(any(String.class), any(String.class), any(List.class))).thenReturn("This document requires quarterly compliance review.");
+        when(generationService.generate(any(String.class), any(String.class), any(List.class), any(List.class))).thenReturn("This document requires quarterly compliance review.");
 
         AgentResponse response = service.query(new AgentQueryRequest("Summarise the compliance obligations", List.of(), null));
 
@@ -102,6 +105,61 @@ class AgentServiceTest {
         });
         verify(messageRepository, org.mockito.Mockito.times(2)).save(any());
         verify(traceRepository).save(any());
+    }
+
+    @Test
+    void passesRecentSessionHistoryToGeneration() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Tenant tenant = new Tenant("Demo");
+        User user = new User(tenant, "demo@findoc.local", "demo@findoc.local", "hash");
+        AgentSession session = new AgentSession(tenant, user);
+        setId(session, sessionId);
+        List<SessionMessage> history = java.util.stream.IntStream.range(0, 12)
+            .mapToObj(index -> new SessionMessage(session, index % 2 == 0 ? "user" : "assistant", "message-" + index))
+            .toList();
+        TenantContext.set(tenantId, userId);
+        when(embeddingService.embed(any(String.class))).thenReturn(new float[768]);
+        when(chunkRepository.searchSimilar(any(float[].class), any(UUID.class), any(Integer.class))).thenReturn(List.of());
+        when(userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)).thenReturn(java.util.Optional.of(user));
+        when(sessionRepository.findByIdAndTenantIdAndUserIdAndDeletedAtIsNull(sessionId, tenantId, userId)).thenReturn(java.util.Optional.of(session));
+        when(messageRepository.findBySessionIdAndTenantIdAndUserIdOrderByCreatedAtAsc(sessionId, tenantId, userId)).thenReturn(history);
+        when(traceRepository.save(any(QueryTrace.class))).thenAnswer(invocation -> {
+            QueryTrace trace = invocation.getArgument(0);
+            setId(trace, UUID.randomUUID());
+            return trace;
+        });
+        when(generationService.generate(any(String.class), any(String.class), any(List.class), any(List.class))).thenReturn("Follow-up answer");
+
+        service.query(new AgentQueryRequest("What follows?", List.of(), sessionId));
+
+        verify(generationService).generate(eq("What follows?"), eq("LOOKUP"), any(List.class),
+            org.mockito.ArgumentMatchers.argThat(messages -> messages.size() == 10
+                && messages.get(0).getContent().equals("message-2")
+                && messages.get(9).getContent().equals("message-11")));
+    }
+
+    @Test
+    void rejectsUnknownSessionWithoutCreatingReplacement() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID sessionId = UUID.randomUUID();
+        Tenant tenant = new Tenant("Demo");
+        User user = new User(tenant, "demo@findoc.local", "demo@findoc.local", "hash");
+        TenantContext.set(tenantId, userId);
+        when(embeddingService.embed(any(String.class))).thenReturn(new float[768]);
+        when(chunkRepository.searchSimilar(any(float[].class), any(UUID.class), any(Integer.class))).thenReturn(List.of());
+        when(userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)).thenReturn(java.util.Optional.of(user));
+        when(sessionRepository.findByIdAndTenantIdAndUserIdAndDeletedAtIsNull(sessionId, tenantId, userId)).thenReturn(java.util.Optional.empty());
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> service.query(new AgentQueryRequest("What follows?", List.of(), sessionId)))
+            .isInstanceOf(java.util.NoSuchElementException.class)
+            .hasMessage("Session not found");
+
+        verify(sessionRepository, org.mockito.Mockito.never()).save(any());
+        verify(generationService, org.mockito.Mockito.never()).generate(any(String.class), any(String.class), any(List.class), any(List.class));
     }
 
     @Test

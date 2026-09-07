@@ -8,4 +8,5 @@
     <include file="classpath:/db/changelog/db.changelog-001-init.xml"/>
     <include file="classpath:/db/changelog/db.changelog-002-vector.xml"/>
     <include file="classpath:/db/changelog/db.changelog-003-ingestion.xml"/>
+    <include file="classpath:/db/changelog/db.changelog-004-chunk-soft-delete.xml"/>
 </databaseChangeLog>
