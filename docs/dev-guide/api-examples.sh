@@ -28,6 +28,18 @@ DOCUMENT_ID=$(curl -sS -X POST "$HOST/api/v1/documents/upload" \
 echo "Document ID: $DOCUMENT_ID"
 echo
 
+echo "Checking document status..."
+curl -sS "$HOST/api/v1/documents/$DOCUMENT_ID/status" \
+  -H "Authorization: Bearer $TOKEN"
+echo
+
+echo "Downloading original document..."
+curl -sS "$HOST/api/v1/documents/$DOCUMENT_ID/download" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o /tmp/findoc-downloaded-sample.txt
+cat /tmp/findoc-downloaded-sample.txt
+echo
+
 echo "Wait for the document to reach READY, then querying agent..."
 read -r -p "Press Enter when document status is READY. "
 QUERY_RESPONSE=$(curl -sS -X POST "$HOST/api/v1/agent/query" \
@@ -46,3 +58,20 @@ echo
 echo "Retrieving query explanation..."
 curl -sS "$HOST/api/v1/agent/explain/$QUERY_ID" -H "Authorization: Bearer $TOKEN"
 echo
+
+echo "Sending a session-aware follow-up query..."
+FOLLOWUP_RESPONSE=$(curl -sS -X POST "$HOST/api/v1/agent/query" \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d "{\"query\":\"What evidence supports that conclusion?\",\"sessionId\":\"$SESSION_ID\",\"documentIds\":[\"$DOCUMENT_ID\"]}")
+echo "$FOLLOWUP_RESPONSE"
+echo
+
+echo "Document comparison requires a second READY document. Set DOCUMENT_ID_B before running this request."
+if [[ -n "${DOCUMENT_ID_B:-}" ]]; then
+  curl -sS -X POST "$HOST/api/v1/agent/compare" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $TOKEN" \
+    -d "{\"documentIdA\":\"$DOCUMENT_ID\",\"documentIdB\":\"$DOCUMENT_ID_B\",\"aspect\":\"financial risks\"}"
+  echo
+fi

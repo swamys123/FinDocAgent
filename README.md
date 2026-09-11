@@ -13,6 +13,7 @@ FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial docume
 - Document comparison that retrieves evidence independently for each requested document.
 - OpenRouter generation with Gemini support, response validation, circuit-breaker settings, and fallback behavior.
 - Liquibase-managed database migrations, seeded local demo data, and file-based request logging with trace context.
+- Basic React frontend with login, document upload/status management, and session-aware agent queries.
 
 ## Requirements
 
@@ -21,6 +22,7 @@ FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial docume
 | Java | 17 |
 | Gradle | Wrapper 8.10.2, included in the repository |
 | Spring Boot | 3.2.12 |
+| Node.js and npm | Required for the frontend in `findoc-agent/frontend/`; use a current LTS release |
 | PostgreSQL | A local instance with the pgvector extension, listening on `localhost:5432` |
 | Apache Kafka | A local broker listening on `localhost:9092` |
 | Podman | Needed to run the Testcontainers-based integration test task |
@@ -38,7 +40,7 @@ The default database is `findoc` on `localhost:5432`. PostgreSQL and Kafka must 
 	```
 
 3. Set `JWT_SECRET` in `.env` to a unique value of at least 32 characters. Update the database and Kafka settings when your local services do not use the defaults.
-4. Start the application:
+4. Start the backend application:
 
 	```bash
 	./gradlew bootRun --console=plain
@@ -52,6 +54,17 @@ curl -i http://localhost:8080/actuator/health
 
 `/actuator/health` and `/api/v1/auth/token` are public. Other API routes require a bearer token.
 
+5. In a second terminal, start the frontend:
+
+	```bash
+	cd findoc-agent/frontend
+	cp .env.example .env
+	npm ci
+	npm run dev
+	```
+
+The frontend listens on `http://localhost:5173`. Set `VITE_API_BASE_URL` in `frontend/.env` when the backend uses a different address. The backend allows this origin by default; configure `FINDOC_CORS_ALLOWED_ORIGINS` in the backend `.env` when using another frontend origin.
+
 ## Configuration
 
 Copy only [findoc-agent/.env.example](findoc-agent/.env.example) to a local `.env`; the local file is ignored by Git. Gradle loads `.env` for `bootRun`, `test`, and `integrationTest`. Values already provided by the shell, CI system, or deployment environment take precedence.
@@ -63,7 +76,14 @@ Copy only [findoc-agent/.env.example](findoc-agent/.env.example) to a local `.en
 | OpenRouter | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `OPENROUTER_BASE_URL` | Generation provider configuration |
 | Provider resilience | `GEMINI_CIRCUIT_FAILURE_THRESHOLD`, `GEMINI_CIRCUIT_OPEN_DURATION_SECONDS`, `OPENROUTER_CIRCUIT_FAILURE_THRESHOLD`, `OPENROUTER_CIRCUIT_OPEN_DURATION_SECONDS` | Circuit-breaker thresholds and open durations |
 | Kafka ingestion | `FINDOC_INGESTION_TOPIC`, `FINDOC_INGESTION_GROUP`, `FINDOC_INGESTION_DLQ` | Ingestion, consumer group, and dead-letter topic names |
+| Backend CORS | `FINDOC_CORS_ALLOWED_ORIGINS` | Comma-separated browser origins allowed to call `/api/**`; defaults to `http://localhost:5173` |
 | Logging | `LOG_PATH`, `LOG_FILE` | Local file logging destination and filename |
+
+The frontend has its own non-secret configuration file at `findoc-agent/frontend/.env`:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_API_BASE_URL` | Backend base URL used by the browser; defaults to `http://localhost:8080` in the tracked template |
 
 Provider keys are optional for startup but required for live provider-backed embedding and generation validation. Do not commit `.env` or use it as a source of deployment secrets; use injected environment variables or the platform secret manager instead.
 
@@ -79,6 +99,15 @@ Run these commands from `findoc-agent/`:
 ```
 
 `test` runs the unit test suite and excludes integration tests. `integrationTest` uses Testcontainers for PostgreSQL and Kafka, so it requires an accessible Podman socket. API authentication and request examples are available in [docs/dev-guide/api-examples.sh](docs/dev-guide/api-examples.sh).
+
+Frontend checks run from `findoc-agent/frontend/`:
+
+```bash
+npm run build
+npm run lint
+```
+
+The current frontend scope includes login, document upload/list/status polling/delete, document selection, and session-aware querying. Session history, document comparison, and query explanation remain backend API workflows without dedicated frontend screens.
 
 ## Local Demo Data
 
