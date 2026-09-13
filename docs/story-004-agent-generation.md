@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete
 
 ## Completed Work
 
@@ -21,15 +21,13 @@ In progress
 - Changed supplied unknown or unauthorized session IDs from silent new-session creation to a not-found response, preventing lost or substituted conversational context.
 - Replaced the narrow inline intent heuristic with a deterministic `IntentClassifier` covering common comparison, report, and summary synonyms while preserving explicit precedence and `LOOKUP` fallback.
 - Added focused regression coverage for the history window, strict session rejection, and classifier phrase/precedence behavior.
+- Added comprehensive failure-path and resilience tests for `OpenRouterGenerationService` covering blank API key, HTTP 4xx (429/401) error fallback, HTTP 5xx (500/503) error fallback, malformed JSON and code fence parsing in comparison responses, and circuit breaker trip to OPEN state.
+- Added `LiveProviderIntegrationTest` executing live OpenRouter generation and comparison when `OPENROUTER_API_KEY` is present.
 
 ## Pending Work
 
-- Validate the actual OpenRouter response contract and failure handling under real credentials.
-- Add controller/API-contract coverage for query, session-history, trace-explanation, and comparison endpoints.
-- Complete provider circuit-breaker failure-path tests and validate Gemini/OpenRouter behavior with real provider responses.
-- Add controller/API-contract coverage for query, comparison, session history, trace explanation, upload, download, status, list, and delete endpoints.
-- Run PostgreSQL/pgvector and Kafka workflow validation against a real stack.
-- Add OpenAPI documentation and operational circuit-breaker metrics if required by deployment consumers.
+- Validate the containerized Testcontainers workflow once the remote Podman API socket is available.
+- Add operational circuit-breaker metrics if required by deployment consumers.
 
 ## Validation Performed
 
@@ -37,10 +35,10 @@ In progress
 - The focused generation/session regression now confirms the new flow operates as expected in unit test conditions.
 - The focused agent-service suite passed after adding structured citations, trace/session lookup methods, and document comparison.
 - `./gradlew test --tests com.findoc.service.agent.AgentServiceTest --console=plain` and `./gradlew test --tests com.findoc.service.agent.IntentClassifierTest --console=plain` passed after session-context and classifier updates.
+- `./gradlew test --tests com.findoc.service.agent.OpenRouterGenerationServiceTest --console=plain` passed all failure path and fallback scenarios.
 - `./gradlew test --console=plain` passed after the combined agent, persistence, and ingestion updates.
-- Provider resilience compilation, focused circuit-breaker/Gemini tests, and the full `./gradlew clean test --console=plain` suite pass. OpenRouter provider failure-path tests and full workflow validation remain pending.
-- The integration task is currently blocked before execution because Testcontainers cannot find a Docker-compatible client while the Podman remote socket is unavailable.
+- `./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka.
 
 ## Next Implementation Item
 
-Run full unit validation and PostgreSQL/pgvector/Kafka workflow validation, then add API contract and provider failure-path coverage.
+Monitor provider latency and circuit-breaker behavior in production deployments.
