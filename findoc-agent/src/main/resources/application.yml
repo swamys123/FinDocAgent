@@ -52,12 +52,14 @@ gemini:
     open-duration-seconds: ${GEMINI_CIRCUIT_OPEN_DURATION_SECONDS:30}
 openrouter:
   api-key: ${OPENROUTER_API_KEY:}
-  model: ${OPENROUTER_MODEL:mistralai/mistral-7b-instruct:free}
+  model: ${OPENROUTER_MODEL:google/gemma-4-31b-it:free}
   base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai}
   circuit-breaker:
     failure-threshold: ${OPENROUTER_CIRCUIT_FAILURE_THRESHOLD:3}
     open-duration-seconds: ${OPENROUTER_CIRCUIT_OPEN_DURATION_SECONDS:30}
 findoc:
+  cors:
+    allowed-origins: ${FINDOC_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   ingestion:
     topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}
     group: ${FINDOC_INGESTION_GROUP:findoc-ingestion}

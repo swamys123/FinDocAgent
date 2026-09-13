@@ -40,6 +40,24 @@ com.findoc.config, .controller, .service.auth, .service.document,
 .messaging, .repository, .entity, .dto.request, .dto.response,
 .exception, .util
 
+## Frontend (React) standards
+- Use functional components with hooks; no class components.
+- Use TypeScript for all new components, hooks, and utilities — no untyped `.jsx`.
+- One component per file; file name matches the component name (e.g., `DocumentList.tsx`).
+- Keep components small and single-purpose: split presentational (UI) components from container/page components that handle data fetching and state.
+- Extract reusable logic into custom hooks (`useX`) instead of duplicating logic or bloating components.
+- Organize by feature/domain (e.g., `features/documents/`, `features/chat/`) with co-located components, hooks, styles, and tests, rather than one large flat `components/` folder.
+- Keep shared, generic UI primitives (buttons, inputs, modals) in a common `components/ui/` layer, decoupled from business logic.
+- Lift state up only as far as needed; prefer local component state, use context or a state library only for genuinely cross-cutting/shared state.
+- Type all props explicitly with interfaces/types; avoid `any`. Define request/response DTO types that mirror backend Java records.
+- Handle loading, error, and empty states explicitly in any component that fetches data — no silent failures or unhandled promise rejections.
+- Use a dedicated API client/service layer (not inline `fetch`/`axios` calls in components) so endpoints, auth headers (JWT), and tenant context are centralized.
+- Never store secrets or JWTs in localStorage/sessionStorage if avoidable; prefer httpOnly cookies or in-memory storage with refresh handling.
+- Sanitize and escape any user-generated or document-derived content before rendering; avoid `dangerouslySetInnerHTML` unless content is sanitized.
+- Use `React.memo`, `useMemo`, `useCallback` only when profiling shows a real re-render cost — do not over-optimize prematurely.
+- Write component tests (e.g., React Testing Library) focused on user-visible behavior, not implementation details.
+- Enforce consistent styling via a single approach (CSS modules, Tailwind, or styled-components — pick one) rather than mixing strategies.
+
 ## Implementation tracking
 - After every implementation phase, create or update a Markdown handoff file under `docs/`.
 - If work is divided into stories, use one file per story: `docs/story-<number>-<short-name>.md`.

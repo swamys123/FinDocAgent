@@ -24,6 +24,8 @@ Implemented so far:
 - Tenant-safe document comparison with independent retrieval for each document
 - Session and trace persistence with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
 - OpenRouter-backed generation with structured comparison fallback and response validation
+- Basic React frontend with login, document management, status polling, document selection, and session-aware queries
+- Backend CORS configuration for the local frontend origin, plus successful frontend build and lint validation
 
 Current runtime caveat:
 
@@ -37,6 +39,7 @@ Current runtime caveat:
 - Database user: `postgres`
 - Database password: `postgres`
 - A JWT secret, for example: `local-dev-secret-at-least-32-characters-long`
+- A current Node.js LTS release with npm for the frontend
 
 ## Local startup
 
@@ -63,12 +66,43 @@ The non-secret template is `findoc-agent/.env.example`. Important settings inclu
 - Ingestion retries use exponential backoff: `FINDOC_INGESTION_RETRY_INITIAL_INTERVAL_MS` defaults to `1000`, `FINDOC_INGESTION_RETRY_MULTIPLIER` to `2.0`, `FINDOC_INGESTION_RETRY_MAX_INTERVAL_MS` to `10000`, and `FINDOC_INGESTION_RETRY_MAX_RETRIES` to `2`.
 - Provider circuit breakers open after three failures for 30 seconds by default. Override those values with `GEMINI_CIRCUIT_FAILURE_THRESHOLD`, `GEMINI_CIRCUIT_OPEN_DURATION_SECONDS`, `OPENROUTER_CIRCUIT_FAILURE_THRESHOLD`, and `OPENROUTER_CIRCUIT_OPEN_DURATION_SECONDS`.
 - `LOG_PATH` and `LOG_FILE` configure the rolling application log location and filename.
+- `FINDOC_CORS_ALLOWED_ORIGINS` configures the browser origins allowed to call `/api/**`; it defaults to `http://localhost:5173`.
+
+The frontend uses a separate non-secret file at `findoc-agent/frontend/.env`:
+
+- `VITE_API_BASE_URL` sets the backend base URL used by browser API requests and defaults to `http://localhost:8080` in `.env.example`.
 
 The application accepts uploads up to 20 MB (`max-file-size` and `max-request-size`). Agent retrieval defaults to five sources (`agent.top-k`) and the agent loop remains capped at five iterations (`agent.max-iterations`).
 
 The application listens on:
 
 - http://localhost:8080
+
+## Frontend development
+
+The basic frontend is a Vite + React + TypeScript application in `findoc-agent/frontend/`. It provides login, document upload/list/status polling/delete, document selection, and session-aware agent queries.
+
+From the frontend directory:
+
+```bash
+cd findoc-agent/frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+The development server listens on http://localhost:5173. The tracked frontend template sets `VITE_API_BASE_URL=http://localhost:8080`. For a different backend address, update `frontend/.env`.
+
+The backend allows `http://localhost:5173` by default. When the frontend runs at another origin, set `FINDOC_CORS_ALLOWED_ORIGINS` in the backend `.env` to the allowed origin or comma-separated origins.
+
+Frontend validation commands are:
+
+```bash
+npm run build
+npm run lint
+```
+
+The basic frontend does not currently include screens for session history, document comparison, or query explanation; those remain available through the backend API.
 
 The project uses Spring Security to protect API endpoints. Public endpoints are:
 
@@ -275,6 +309,8 @@ curl -i -X POST http://localhost:8080/api/v1/agent/query \
   }'
 ```
 
+The response keeps the same `sessionId` and includes the new query's `queryId`. The frontend carries this session ID across follow-up questions.
+
 ### Session history
 
 ```bash
@@ -336,6 +372,8 @@ curl -i -X POST http://localhost:8080/api/v1/agent/compare \
   }'
 ```
 
+Comparison retrieves evidence independently for each document. Both IDs must be tenant-owned documents with `READY` status; the response returns separate `documentASources` and `documentBSources` arrays.
+
 Sample response:
 
 ```json
@@ -376,6 +414,8 @@ Before you consider a local test successful, confirm:
 9. Comparing two tenant-owned `READY` documents returns HTTP 200 and source arrays for both document scopes.
 10. For live end-to-end verification, confirm Kafka ingestion, PostgreSQL/pgvector persistence and retrieval, and provider-backed Gemini/OpenRouter calls separately; unit tests and application startup do not prove those integrations.
 
+For frontend verification, also confirm that login succeeds, documents can be selected and uploaded, status polling reaches `READY` or `FAILED`, and a follow-up query reuses the returned session.
+
 ## Notes
 
 - This project is intentionally tenant-scoped. Tokens carry both `tenant_id` and `user_id` claims.
@@ -383,3 +423,4 @@ Before you consider a local test successful, confirm:
 - OpenRouter generation and comparison fall back to deterministic local responses when the API key is blank, a provider call fails, or its circuit breaker is open. Gemini embedding does not have an equivalent fallback, so ingestion requires a working Gemini key and endpoint.
 - Integration tests that use Testcontainers require a working Podman remote socket in this environment; when that socket is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
+- The basic frontend has build and lint validation but no automated frontend tests yet; this remains a future enhancement.
