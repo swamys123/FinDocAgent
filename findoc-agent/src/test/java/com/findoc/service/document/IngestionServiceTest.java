@@ -60,7 +60,7 @@ class IngestionServiceTest {
 
         assertThat(document.getStatus()).isEqualTo(Document.Status.READY);
         assertThat(document.getPageCount()).isEqualTo(4);
-        verify(chunkRepository).deleteByDocumentIdAndTenantId(documentId, tenantId);
+        verify(chunkRepository).softDeleteByDocumentIdAndTenantId(org.mockito.Mockito.eq(documentId), org.mockito.Mockito.eq(tenantId), org.mockito.ArgumentMatchers.any());
         verify(chunkRepository, org.mockito.Mockito.times(2)).save(any());
         verify(documentRepository).save(document);
     }
@@ -106,7 +106,7 @@ class IngestionServiceTest {
             .hasMessage("embedding unavailable");
 
         assertThat(document.getStatus()).isEqualTo(Document.Status.PROCESSING);
-        verify(chunkRepository).deleteByDocumentIdAndTenantId(documentId, tenantId);
+        verify(chunkRepository).softDeleteByDocumentIdAndTenantId(org.mockito.Mockito.eq(documentId), org.mockito.Mockito.eq(tenantId), org.mockito.ArgumentMatchers.any());
         verify(documentRepository, never()).save(document);
     }
 

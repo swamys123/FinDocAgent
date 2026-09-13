@@ -19,6 +19,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class DocumentServiceTest {
@@ -71,5 +72,24 @@ class DocumentServiceTest {
         assertThatThrownBy(() -> service.download(documentId))
             .isInstanceOf(IllegalStateException.class)
             .hasMessage("Document source not found");
+    }
+
+    @Test
+    void softDeletesTenantDocumentChunksWithDocument() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID documentId = UUID.randomUUID();
+        Tenant tenant = mock(Tenant.class);
+        User user = mock(User.class);
+        Document document = new Document(tenant, user, "report.pdf", "application/pdf");
+        ReflectionTestUtils.setField(document, "id", documentId);
+        TenantContext.set(tenantId, userId);
+        when(documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(documentId, tenantId)).thenReturn(Optional.of(document));
+
+        service.delete(documentId);
+
+        verify(documentChunkRepository).softDeleteByDocumentIdAndTenantId(org.mockito.Mockito.eq(documentId), org.mockito.Mockito.eq(tenantId), org.mockito.ArgumentMatchers.any());
+        verify(documentRepository).save(document);
+        assertThat(document.getDeletedAt()).isNotNull();
     }
 }

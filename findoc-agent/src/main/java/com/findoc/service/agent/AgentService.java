@@ -33,6 +33,8 @@ import java.util.*;
 
 @Service
 public class AgentService {
+    private static final int MAX_HISTORY_MESSAGES = 10;
+
     private final DocumentChunkRepository chunkRepository;
     private final DocumentRepository documentRepository;
     private final EmbeddingService embeddingService;
@@ -41,6 +43,7 @@ public class AgentService {
     private final SessionMessageRepository messageRepository;
     private final QueryTraceRepository traceRepository;
     private final OpenRouterGenerationService generationService;
+    private final IntentClassifier intentClassifier;
     private final ObjectMapper objectMapper;
     private final int maxIterations;
     private final int topK;
@@ -53,6 +56,7 @@ public class AgentService {
                         SessionMessageRepository messageRepository,
                         QueryTraceRepository traceRepository,
                         OpenRouterGenerationService generationService,
+                        IntentClassifier intentClassifier,
                         @Value("${agent.max-iterations:5}") int maxIterations,
                         @Value("${agent.top-k:5}") int topK) {
         this.chunkRepository = chunkRepository;
@@ -63,6 +67,7 @@ public class AgentService {
         this.messageRepository = messageRepository;
         this.traceRepository = traceRepository;
         this.generationService = generationService;
+        this.intentClassifier = intentClassifier;
         this.objectMapper = new ObjectMapper();
         this.maxIterations = Math.min(maxIterations, 5);
         this.topK = topK;
@@ -74,7 +79,7 @@ public class AgentService {
         UUID tenantId = TenantContext.tenantId();
         UUID userId = TenantContext.userId();
         List<UUID> ids = request.documentIds() == null ? List.of() : request.documentIds();
-        String intent = classify(request.query());
+        String intent = intentClassifier.classify(request.query());
         List<String> steps = new ArrayList<>();
         steps.add("classify_intent");
 
@@ -89,19 +94,22 @@ public class AgentService {
         User user = userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)
             .orElseThrow(() -> new IllegalStateException("User not found in tenant context"));
 
-        UUID sessionId = request.sessionId() == null ? null : request.sessionId();
+        UUID sessionId = request.sessionId();
         AgentSession session = sessionId == null
             ? sessionRepository.save(new AgentSession(user.getTenant(), user))
             : sessionRepository.findByIdAndTenantIdAndUserIdAndDeletedAtIsNull(sessionId, tenantId, userId)
-                .orElseGet(() -> sessionRepository.save(new AgentSession(user.getTenant(), user)));
+                .orElseThrow(() -> new NoSuchElementException("Session not found"));
 
-        if (request.sessionId() == null || !request.sessionId().equals(session.getId())) {
+        if (sessionId == null) {
             sessionId = session.getId();
         }
 
         steps.add("generate_report");
 
-        String answer = generationService.generate(request.query(), intent, sourceChunks);
+        List<SessionMessage> history = sessionId.equals(request.sessionId())
+            ? recentHistory(messageRepository.findBySessionIdAndTenantIdAndUserIdOrderByCreatedAtAsc(sessionId, tenantId, userId))
+            : List.of();
+        String answer = generationService.generate(request.query(), intent, sourceChunks, history);
         if (answer == null || answer.isBlank()) {
             answer = sourceChunks.isEmpty() ? "No indexed content matched the query." : "Relevant content found in " + sourceChunks.size() + " chunk(s).";
         }
@@ -215,6 +223,11 @@ public class AgentService {
         );
     }
 
+    private List<SessionMessage> recentHistory(List<SessionMessage> messages) {
+        int firstIncludedIndex = Math.max(0, messages.size() - MAX_HISTORY_MESSAGES);
+        return messages.subList(firstIncludedIndex, messages.size());
+    }
+
     private Document readyDocument(UUID documentId, UUID tenantId) {
         Document document = documentRepository.findByIdAndTenantIdAndDeletedAtIsNull(documentId, tenantId)
             .orElseThrow(() -> new NoSuchElementException("Document not found"));
@@ -255,11 +268,4 @@ public class AgentService {
         }
     }
 
-    private String classify(String query) {
-        String normalized = query.toLowerCase(Locale.ROOT);
-        if (normalized.contains("compare") || normalized.contains("difference")) return "COMPARE";
-        if (normalized.contains("summar")) return "SUMMARISE";
-        if (normalized.contains("report")) return "REPORT";
-        return "LOOKUP";
-    }
 }

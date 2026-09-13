@@ -10,6 +10,7 @@ import com.findoc.service.embedding.EmbeddingService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -55,7 +56,7 @@ public class IngestionService {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("Document produced no chunks");
         }
-        chunkRepository.deleteByDocumentIdAndTenantId(job.documentId(), job.tenantId());
+        chunkRepository.softDeleteByDocumentIdAndTenantId(job.documentId(), job.tenantId(), Instant.now());
         for (int index = 0; index < chunks.size(); index++) {
             String content = chunks.get(index);
             var chunk = new DocumentChunk(document, document.getTenant(), index, content);

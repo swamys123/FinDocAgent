@@ -52,6 +52,20 @@ Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
 
+### Configuration reference
+
+The non-secret template is `findoc-agent/.env.example`. Important settings include:
+
+- `DB_USERNAME`, `DB_PASSWORD`, and `KAFKA_BOOTSTRAP_SERVERS` configure the local PostgreSQL and Kafka connections.
+- `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`, and `GEMINI_BASE_URL` configure embeddings. A Gemini key is required for ingestion to create vector embeddings.
+- `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, and `OPENROUTER_BASE_URL` configure answer generation and comparison. With no key, the application uses its local summary/comparison fallback.
+- `FINDOC_INGESTION_TOPIC`, `FINDOC_INGESTION_GROUP`, and `FINDOC_INGESTION_DLQ` configure the ingestion topic, consumer group, and dead-letter topic.
+- Ingestion retries use exponential backoff: `FINDOC_INGESTION_RETRY_INITIAL_INTERVAL_MS` defaults to `1000`, `FINDOC_INGESTION_RETRY_MULTIPLIER` to `2.0`, `FINDOC_INGESTION_RETRY_MAX_INTERVAL_MS` to `10000`, and `FINDOC_INGESTION_RETRY_MAX_RETRIES` to `2`.
+- Provider circuit breakers open after three failures for 30 seconds by default. Override those values with `GEMINI_CIRCUIT_FAILURE_THRESHOLD`, `GEMINI_CIRCUIT_OPEN_DURATION_SECONDS`, `OPENROUTER_CIRCUIT_FAILURE_THRESHOLD`, and `OPENROUTER_CIRCUIT_OPEN_DURATION_SECONDS`.
+- `LOG_PATH` and `LOG_FILE` configure the rolling application log location and filename.
+
+The application accepts uploads up to 20 MB (`max-file-size` and `max-request-size`). Agent retrieval defaults to five sources (`agent.top-k`) and the agent loop remains capped at five iterations (`agent.max-iterations`).
+
 The application listens on:
 
 - http://localhost:8080
@@ -161,6 +175,8 @@ Sample response:
 }
 ```
 
+The upload endpoint returns HTTP 202 Accepted. The document starts in `PENDING` while a Kafka ingestion job extracts text, stores the page count, chunks content at 512 tokens with 50-token overlap, creates embeddings, and marks the document `READY`. Processing failures mark the document `FAILED` after retry handling; a document must be `READY` before it can provide indexed content for queries or comparisons.
+
 ### Check document status
 
 ```bash
@@ -198,9 +214,15 @@ curl -i -X DELETE http://localhost:8080/api/v1/documents/0e5dc0a9-f855-4b46-a2b9
 
 Response is HTTP 204 No Content.
 
+### Document errors
+
+Common invalid, missing, or unauthenticated requests return Spring `ProblemDetail` JSON with `type`, `title`, `status`, and `detail` fields. Examples include HTTP 400 for unsupported or empty files, invalid query/comparison input, or documents that are not ready; HTTP 401 for missing/invalid credentials; and HTTP 404 for tenant-scoped resources that do not exist. Document lookup and download remain tenant-scoped by the claims in the bearer token.
+
 ## Agent query API
 
 Use an omitted `sessionId` for the first question. Save the returned `sessionId` and provide it in a follow-up query.
+
+`query` is required. `documentIds` and `sessionId` are optional: omit `documentIds` for tenant-scoped retrieval across the tenant's indexed documents, and omit `sessionId` to start a new session. Results are limited to the configured `agent.top-k` value, five by default. `pageNumber` may be absent for source content without page metadata.
 
 Request:
 
@@ -347,14 +369,17 @@ Before you consider a local test successful, confirm:
 2. The application starts with `./gradlew bootRun` without runtime exceptions.
 3. `/actuator/health` returns HTTP 200.
 4. `/api/v1/auth/token` returns a bearer token for the seeded demo user.
-5. A document upload returns a `DocumentResponse` with a valid `documentId`.
+5. A document upload returns HTTP 202 and a `DocumentResponse` with a valid `documentId`.
 6. A protected request without a token returns HTTP 401.
 7. After the document is `READY`, an agent query returns non-empty structured `sources`, `queryId`, and `sessionId`.
 8. `GET /api/v1/agent/sessions/{sessionId}` and `GET /api/v1/agent/explain/{queryId}` return HTTP 200 for IDs returned by the query endpoint.
 9. Comparing two tenant-owned `READY` documents returns HTTP 200 and source arrays for both document scopes.
+10. For live end-to-end verification, confirm Kafka ingestion, PostgreSQL/pgvector persistence and retrieval, and provider-backed Gemini/OpenRouter calls separately; unit tests and application startup do not prove those integrations.
 
 ## Notes
 
 - This project is intentionally tenant-scoped. Tokens carry both `tenant_id` and `user_id` claims.
 - The agent query path records `classify_intent`, `vector_search`, and `generate_report`; the configured five-iteration cap remains enforced even though dynamic tool selection is future work.
+- OpenRouter generation and comparison fall back to deterministic local responses when the API key is blank, a provider call fails, or its circuit breaker is open. Gemini embedding does not have an equivalent fallback, so ingestion requires a working Gemini key and endpoint.
+- Integration tests that use Testcontainers require a working Podman remote socket in this environment; when that socket is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
