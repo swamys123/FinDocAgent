@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findoc.entity.SessionMessage;
 import com.findoc.service.ProviderCircuitBreaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -16,6 +18,7 @@ import java.util.List;
 
 @Service
 public class OpenRouterGenerationService {
+    private static final Logger log = LoggerFactory.getLogger(OpenRouterGenerationService.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final RestClient restClient;
     private final String apiKey;
@@ -29,7 +32,7 @@ public class OpenRouterGenerationService {
     @Autowired
     public OpenRouterGenerationService(
         @Value("${openrouter.api-key:}") String apiKey,
-        @Value("${openrouter.model:mistralai/mistral-7b-instruct:free}") String model,
+        @Value("${openrouter.model:google/gemma-4-31b-it:free}") String model,
         @Value("${openrouter.base-url:https://openrouter.ai}") String baseUrl,
         @Value("${openrouter.circuit-breaker.failure-threshold:3}") int failureThreshold,
         @Value("${openrouter.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds) {
@@ -53,12 +56,17 @@ public class OpenRouterGenerationService {
 
     public String generate(String query, String intent, List<String> sources, List<SessionMessage> history) {
         if (apiKey.isBlank()) {
+            log.info("OPENROUTER_API_KEY is not configured; using local summary instead of live generation");
             return summarizeLocally(query, intent, sources);
         }
 
         try {
             return circuitBreaker.execute(() -> generateFromProvider(query, intent, sources, history));
+        } catch (ProviderCircuitBreaker.CircuitOpenException exception) {
+            log.warn("OpenRouter circuit is open; falling back to local summary for model '{}'", model);
+            return summarizeLocally(query, intent, sources);
         } catch (RuntimeException exception) {
+            log.warn("OpenRouter generation call failed for model '{}'; falling back to local summary", model, exception);
             return summarizeLocally(query, intent, sources);
         }
     }
@@ -101,6 +109,7 @@ public class OpenRouterGenerationService {
             .retrieve()
             .body(JsonNode.class));
         } catch (RuntimeException exception) {
+            log.warn("OpenRouter comparison call failed for model '{}'; falling back to local comparison", model, exception);
             return localComparison(aspect, documentASources, documentBSources);
         }
         String content = response == null ? "" : response.path("choices").path(0).path("message").path("content").asText();
@@ -112,6 +121,7 @@ public class OpenRouterGenerationService {
                 objectMapper.convertValue(result.path("differences"), objectMapper.getTypeFactory().constructCollectionType(List.class, String.class))
             );
         } catch (Exception exception) {
+            log.warn("Failed to parse OpenRouter comparison response for model '{}'; falling back to local comparison", model, exception);
             return localComparison(aspect, documentASources, documentBSources);
         }
     }
@@ -130,10 +140,10 @@ public class OpenRouterGenerationService {
 
     private String summarizeLocally(String query, String intent, List<String> sources) {
         if (sources.isEmpty()) {
-            return "No indexed content matched the query.";
+            return "[Offline mode \u2014 LLM unavailable] No indexed content matched the query.";
         }
         String joined = String.join(" ", sources);
-        return "Based on the retrieved context, the answer for '" + query + "' is: " + joined.substring(0, Math.min(joined.length(), 280));
+        return "[Offline mode \u2014 LLM unavailable] Based on the retrieved context, the answer for '" + query + "' is: " + joined.substring(0, Math.min(joined.length(), 280));
     }
 
     private String comparisonPrompt(String aspect, List<String> documentASources, List<String> documentBSources) {
@@ -147,7 +157,7 @@ public class OpenRouterGenerationService {
 
     private ComparisonGeneration localComparison(String aspect, List<String> documentASources, List<String> documentBSources) {
         if (documentASources.isEmpty() && documentBSources.isEmpty()) {
-            return new ComparisonGeneration("No indexed content matched the comparison aspect.", List.of(), List.of());
+            return new ComparisonGeneration("[Offline mode \u2014 LLM unavailable] No indexed content matched the comparison aspect.", List.of(), List.of());
         }
         List<String> similarities = documentASources.isEmpty() || documentBSources.isEmpty()
             ? List.of()
@@ -159,7 +169,7 @@ public class OpenRouterGenerationService {
         if (!documentBSources.isEmpty()) {
             differences.add("Document B: " + excerpt(documentBSources.get(0)));
         }
-        return new ComparisonGeneration("Comparison completed for " + aspect + ".", similarities, List.copyOf(differences));
+        return new ComparisonGeneration("[Offline mode \u2014 LLM unavailable] Comparison completed for " + aspect + ".", similarities, List.copyOf(differences));
     }
 
     private String excerpt(String source) {
