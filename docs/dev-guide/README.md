@@ -26,6 +26,7 @@ Implemented so far:
 - OpenRouter-backed generation with structured comparison fallback and response validation
 - Basic React frontend with login, document management, status polling, document selection, and session-aware queries
 - Backend CORS configuration for the local frontend origin, plus successful frontend build and lint validation
+- Generated OpenAPI documentation and Swagger UI with bearer JWT security metadata
 
 Current runtime caveat:
 
@@ -108,8 +109,25 @@ The project uses Spring Security to protect API endpoints. Public endpoints are:
 
 - `/actuator/health`
 - `/api/v1/auth/token`
+- `/v3/api-docs`
+- `/swagger-ui/**`
 
 All other API routes require a valid bearer token.
+
+## OpenAPI and Swagger UI
+
+With the backend running locally, access the generated API documentation at:
+
+- OpenAPI JSON: http://localhost:8080/v3/api-docs
+- Swagger UI: http://localhost:8080/swagger-ui/index.html
+
+The Swagger UI groups the implemented APIs under Authentication, Documents, and Agent. Click **Authorize** and enter the JWT returned by `/api/v1/auth/token` to try protected operations. The authorization value should use the bearer token returned by the authentication endpoint.
+
+To inspect the raw specification from a terminal:
+
+```bash
+curl -i http://localhost:8080/v3/api-docs
+```
 
 ## Seeded demo account
 

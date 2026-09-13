@@ -32,7 +32,16 @@ It listens on `http://localhost:8080`. The health check is:
 curl -i http://localhost:8080/actuator/health
 ```
 
-The public endpoints are `/actuator/health` and `/api/v1/auth/token`; all other API routes require a bearer token. The seeded local demo account is tenant `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`, and password `demo123`.
+The public endpoints are `/actuator/health`, `/api/v1/auth/token`, `/v3/api-docs`, and `/swagger-ui/**`; all other API routes require a bearer token. The seeded local demo account is tenant `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`, and password `demo123`.
+
+## API Documentation
+
+When the backend is running, the generated OpenAPI specification is available at:
+
+- JSON specification: http://localhost:8080/v3/api-docs
+- Swagger UI: http://localhost:8080/swagger-ui/index.html
+
+Swagger UI documents the authentication, document, and agent APIs. Use its **Authorize** control with the JWT returned by `/api/v1/auth/token` to call protected operations.
 
 ## Frontend
 
