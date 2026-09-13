@@ -15,6 +15,22 @@ FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial docume
 - Liquibase-managed database migrations, seeded local demo data, and file-based request logging with trace context.
 - Basic React frontend with login, document upload/status management, and session-aware agent queries.
 
+## Product Screenshots
+
+The frontend provides a focused workflow for uploading financial documents, monitoring ingestion, selecting source documents, and asking grounded questions with citations.
+
+### Document Management
+
+Upload documents, track processing status and chunk counts, and manage the tenant's document library from one view.
+
+![FinDocAgent document management screen](screens/Document_Listing.png)
+
+### Grounded Document Querying
+
+Ask questions against selected documents and review the generated answer, detected intent, confidence, and source evidence together.
+
+![FinDocAgent grounded query screen](screens/Document_Query.png)
+
 ## Requirements
 
 | Software | Required version or setup |
