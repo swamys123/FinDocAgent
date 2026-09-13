@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete for local integration validation; provider validation remains
 
 ## Completed Work
 
@@ -43,7 +43,8 @@ In progress
 - Full test suite passed after the pgvector `float[]` mapping fix; the new `persistsChunkEmbeddingAsNativeFloatArray` regression confirms embedding values reach the repository as native `float[]`.
 - `./gradlew test --tests com.findoc.service.document.DocumentServiceTest --console=plain` and `./gradlew test --tests com.findoc.messaging.KafkaIngestionConsumerTest --console=plain` passed after chunk soft-delete and retry-path consolidation.
 - `./gradlew test --console=plain` passed after the combined agent, persistence, and ingestion updates.
+- `./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka. The suite validates Liquibase, native `<=>` cosine retrieval, tenant isolation, soft-deleted chunk exclusion, Kafka JSON delivery, BYTEA source extraction, chunk persistence, and READY lifecycle completion with deterministic test embeddings.
 
 ## Next Implementation Item
 
-Run PostgreSQL/pgvector/Kafka workflow validation and complete the remaining ingestion and persistence tests.
+Complete provider failure-path coverage and live Gemini validation.

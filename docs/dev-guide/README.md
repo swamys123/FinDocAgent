@@ -7,6 +7,7 @@ The implementation is now beyond the initial scaffold and includes the main tena
 Verified in this workspace:
 
 - `cd findoc-agent && ./gradlew test --console=plain` passed successfully.
+- `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka.
 - `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
 
 Implemented so far:
@@ -30,7 +31,7 @@ Implemented so far:
 
 Current runtime caveat:
 
-- The project is runnable locally in a boot/sanity sense, but real PostgreSQL/pgvector and Kafka integration validation remains the next live environment checkpoint before calling the end-to-end flow completely production-verified.
+- The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task still requires an accessible Podman socket.
 
 ## Prerequisites
 
@@ -52,7 +53,7 @@ cp .env.example .env
 ./gradlew bootRun --console=plain
 ```
 
-Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence.
+Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, `localIntegrationTest`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence.
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
 
@@ -61,6 +62,7 @@ Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI
 The non-secret template is `findoc-agent/.env.example`. Important settings include:
 
 - `DB_USERNAME`, `DB_PASSWORD`, and `KAFKA_BOOTSTRAP_SERVERS` configure the local PostgreSQL and Kafka connections.
+- `TEST_DB_NAME` selects the PostgreSQL database used by `localIntegrationTest` and defaults to `findoc-test-db`. Optional `TEST_DB_URL`, `TEST_DB_USERNAME`, and `TEST_DB_PASSWORD` values can override the derived test connection without changing application configuration.
 - `GEMINI_API_KEY`, `GEMINI_EMBEDDING_MODEL`, and `GEMINI_BASE_URL` configure embeddings. A Gemini key is required for ingestion to create vector embeddings.
 - `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, and `OPENROUTER_BASE_URL` configure answer generation and comparison. With no key, the application uses its local summary/comparison fallback.
 - `FINDOC_INGESTION_TOPIC`, `FINDOC_INGESTION_GROUP`, and `FINDOC_INGESTION_DLQ` configure the ingestion topic, consumer group, and dead-letter topic.

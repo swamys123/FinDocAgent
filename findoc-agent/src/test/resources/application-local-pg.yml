@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${TEST_DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:findoc-test-db}}
+    username: ${TEST_DB_USERNAME:${DB_USERNAME:postgres}}
+    password: ${TEST_DB_PASSWORD:${DB_PASSWORD:postgres}}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  liquibase:
+    enabled: true
+    change-log: classpath:/db/changelog/db.changelog-master.xml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      auto-startup: true
+      missing-topics-fatal: false
+
+findoc:
+  ingestion:
+    group: local-integration-${random.uuid}
+    retry:
+      initial-interval-ms: 100
+      max-interval-ms: 500
+      max-retries: 1

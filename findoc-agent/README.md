@@ -8,7 +8,8 @@ Tenant-aware document intelligence application built with Spring Boot 3.2, Java 
 - PostgreSQL with pgvector on `localhost:5432`
 - Apache Kafka on `localhost:9092`
 - Node.js and npm (current LTS) for the frontend
-- Podman with an accessible socket for `integrationTest`
+- PostgreSQL test database `findoc-test-db` for `localIntegrationTest`
+- Podman with an accessible socket only for the containerized `integrationTest`
 
 ## Local Run
 
@@ -59,7 +60,7 @@ The development server listens on `http://localhost:5173`. Set `VITE_API_BASE_UR
 
 ## Configuration and Limits
 
-Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, Gemini and OpenRouter provider settings, ingestion topic and retry settings, provider circuit-breaker settings, CORS, and rolling log configuration.
+Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, the local integration test database name, Gemini and OpenRouter provider settings, ingestion topic and retry settings, provider circuit-breaker settings, CORS, and rolling log configuration. Gradle loads the populated, Git-ignored `.env` into test processes without modifying `application.yml`.
 
 - Uploads are limited to 20 MB.
 - Ingestion chunks use 512 tokens with a 50-token overlap.
@@ -75,6 +76,7 @@ Run from this directory:
 ```bash
 ./gradlew compileJava --console=plain
 ./gradlew test --console=plain
+./gradlew localIntegrationTest --console=plain
 ./gradlew integrationTest --console=plain
 ```
 
@@ -85,4 +87,10 @@ npm run build
 npm run lint
 ```
 
-`integrationTest` uses Testcontainers and requires an accessible Podman socket. Unit tests and startup do not replace live PostgreSQL/pgvector, Kafka, Gemini, or OpenRouter validation. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).
+`localIntegrationTest` uses the PostgreSQL database named by `TEST_DB_NAME` (default `findoc-test-db`) and the Kafka broker configured by `KAFKA_BOOTSTRAP_SERVERS`. It validates Liquibase, BYTEA source persistence, pgvector cosine retrieval, tenant isolation, soft-deleted chunks, Kafka ingestion, chunking, and document readiness with deterministic test embeddings. Create the test database before running it:
+
+```sql
+CREATE DATABASE "findoc-test-db";
+```
+
+`integrationTest` remains the Testcontainers-based alternative and requires an accessible Podman socket. Provider-backed Gemini and OpenRouter validation is a separate live check and requires provider credentials in `.env`. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).

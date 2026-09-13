@@ -5,9 +5,9 @@ This file is the authoritative starting point for implementation work across ses
 ## Current Phase
 - Status: Upload, ingestion, chunking, embedding, vector retrieval, structured agent query sources, session-aware generation, explain traces, document comparison, provider resilience, local dotenv loading, public-documentation alignment, root-project onboarding documentation, and a basic React frontend (login, upload, document status polling, query) are implemented or in progress. The immediate execution gate remains live PostgreSQL/pgvector and Kafka workflow validation with a populated local `.env`.
 - Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, confirmed Kafka publication, a single Spring Kafka ingestion/retry/DLQ path with configurable exponential backoff, PDF/text extraction with page-count persistence, chunking, soft-deleted document chunks with active-only cosine retrieval, vector schema, Gemini response validation, the Gemini model-contract fix for the unsupported default model, tenant-safe cosine retrieval, bounded agent query flow, tenant/user-scoped ten-message session context passed into generation with strict session lookup, deterministic four-intent classification, session/trace persistence, structured query citations, OpenRouter-backed generation with structured comparison fallback, tenant-safe document comparison, the PostgreSQL BYTEA/OID schema mismatch fix for document sources, request-scoped MDC tracing for trace_id/tenant_id/user_id, original-file retrieval support via the document download endpoint, daily log rollover with dated archive naming and no deletion of historical logs, the pgvector Hibernate mapping fix for chunk embedding persistence (`float[]` with `SqlTypes.VECTOR` + `hibernate-vector`), local dotenv configuration with a non-secret template and Copilot secret-handling safeguards, the shared provider circuit-breaker implementation with configurable thresholds and OpenRouter fallback behavior, aligned root/developer documentation for the React frontend, CORS, and current API examples, controller contract tests for all implemented APIs, and generated OpenAPI/Swagger configuration with bearer JWT metadata.
-- Pending: Live PostgreSQL/pgvector and Kafka workflow validation; live Gemini/OpenRouter validation; stronger ingestion and persistence-level tests; provider resilience failure-path coverage; runtime verification of `/v3/api-docs` and Swagger UI; and any required circuit-breaker operational metrics.
-- Validation: focused controller and OpenAPI tests pass, and the full `./gradlew test --console=plain` suite passes. `./gradlew integrationTest --console=plain` remains blocked during Testcontainers startup because the Podman remote socket is unavailable (`podman info` reports `RemoteSocket.Exists=false`). Live provider validation remains pending.
-- Next item: Run the full unit suite, then execute PostgreSQL/pgvector and Kafka workflow validation and complete provider failure-path coverage.
+- Pending: Live Gemini/OpenRouter validation; provider resilience failure-path coverage; runtime verification of `/v3/api-docs` and Swagger UI; and any required circuit-breaker operational metrics. The containerized Testcontainers path remains separate and requires the Podman API socket.
+- Validation: focused controller and OpenAPI tests pass, the full `./gradlew test --console=plain` suite passes, and `./gradlew localIntegrationTest --console=plain` passes against local PostgreSQL/pgvector and Kafka using the hidden `.env` environment. The local suite validates Liquibase migrations, native `<=>` retrieval, tenant isolation, chunk soft deletion, BYTEA-backed ingestion, Kafka JSON publication/consumption, chunking, and document readiness.
+- Next item: Complete provider failure-path coverage and live Gemini/OpenRouter validation.
 
 ## Stories and Phases
 
@@ -19,9 +19,9 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 001 | [Gradle foundation and core API slice](story-001-gradle-foundation.md) | Complete | Implement PostgreSQL entities and tenant-scoped repositories |
 
-| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | In progress | Add Gemini embeddings and pgvector retrieval |
+| Story 002 | [Persistence and tenant isolation](story-002-persistence.md) | Complete | Add Gemini embeddings and pgvector retrieval |
 
-| Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | In progress | Validate PostgreSQL/pgvector and Kafka workflows |
+| Story 003 | [Embeddings and vector retrieval](story-003-embeddings.md) | Complete | Complete provider resilience tests and live provider validation |
 
 | Story 004 | [Agent generation and audit trace](story-004-agent-generation.md) | In progress | Complete provider resilience tests, API contract tests, and live validation |
 
