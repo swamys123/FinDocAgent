@@ -6,6 +6,7 @@
 - Implemented a thin API client layer (`src/api/client.ts`, `auth.ts`, `documents.ts`, `agent.ts`) covering login, document upload/list/status/delete, and agent query.
 - Implemented `AuthContext`/`useAuth` (token persisted in `localStorage`) and `SelectionContext`/`useSelection` (tracks selected document IDs for scoping queries), each context split into a dedicated non-component file to satisfy the `react-refresh` lint rule.
 - Implemented `LoginPage` (tenantId/username/password form), `DocumentsPage` (upload control, document table, status polling every 3s for `PENDING`/`PROCESSING` documents until `READY`/`FAILED`, document selection checkboxes, delete action), and `QueryPage` (query textarea, renders answer/intent/confidence/sources/steps, carries `sessionId` across follow-up queries).
+- Made the document upload action explicitly visible as a `Browse files` button while keeping the native file input accessible and connected to the existing upload flow.
 - Wired `App.tsx` with `react-router-dom` routes (`/login`, `/documents`, `/query`), a `ProtectedRoute` guard, and a shared `NavBar`.
 - Added `.env.example` (`VITE_API_BASE_URL=http://localhost:8080`) and ignored `.env` in `findoc-agent/frontend/.gitignore`.
 
@@ -17,6 +18,7 @@
 ## Validation performed
 - `npm run build` (`tsc -b && vite build`) succeeds with no errors.
 - `npm run lint` (ESLint) passes with no errors.
+- `get_errors` reports no errors for `DocumentsPage.tsx` after the upload-control change.
 - `./gradlew test --console=plain` passes after the `SecurityConfig` CORS change (no test failures).
 - Local end-to-end validation completed successfully: login, document upload, ingestion status polling, and querying the uploaded document.
 

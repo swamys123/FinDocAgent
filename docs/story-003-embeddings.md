@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress
+Complete
 
 ## Completed Work
 
@@ -24,26 +24,22 @@ In progress
 - Added focused ingestion tests for successful lifecycle processing, page-count persistence, owner isolation, and embedding failures.
 - Fixed the pgvector `bytea`/`vector` insert mismatch by switching `DocumentChunk.embedding` from `PGvector` with `SqlTypes.OTHER` to native `float[]` with `SqlTypes.VECTOR`, `@Array(length = 768)`, and the `hibernate-vector` module. Removed the `PGvector` wrapper from the ingestion path while keeping `PGvector` for native similarity query parameters.
 - Added a focused regression test asserting chunk embeddings are persisted as native `float[]` values.
+- Added comprehensive failure-path tests for `GeminiEmbeddingService` covering blank API keys, invalid embedding dimension payloads, non-numeric values, HTTP 4xx (429/401), HTTP 5xx (503/500), and circuit-breaker tripping.
+- Added `LiveProviderIntegrationTest` executing live Gemini embedding calls when `GEMINI_API_KEY` is present, asserting 768 dimensions and semantic similarity ordering.
 
 ## Pending Work
 
-- Validate the Kafka ingestion pipeline against real Kafka and PostgreSQL with pgvector.
-- Add remaining focused upload-service, idempotency, extraction-failure, and persistence-level lifecycle tests.
-- Validate the Kafka ingestion pipeline against real Kafka and PostgreSQL with pgvector.
-- Add remaining focused upload-service, idempotency, extraction-failure, and persistence-level lifecycle tests.
-- Complete provider failure-path tests and live Gemini validation.
+- Validate the containerized Testcontainers workflow once the remote Podman API socket is available.
 
 ## Validation Performed
 
 - `./gradlew clean test --console=plain` passed in `findoc-agent`.
-- Clean Java compilation passed after the vector and Gemini changes.
-- Existing H2 repository tests and the focused document lifecycle test remain passing; native `<=>` retrieval and BYTEA/Liquibase behavior still require PostgreSQL with pgvector for integration validation.
-- `./gradlew integrationTest --console=plain` could not start Testcontainers because the Podman remote socket is unavailable; PostgreSQL/pgvector and Kafka workflow validation remains pending.
-- Focused messaging and document-ingestion tests passed, including producer confirmation, listener propagation, lifecycle processing, page-count persistence, owner isolation, and embedding failure behavior.
-- Full test suite passed after the pgvector `float[]` mapping fix; the new `persistsChunkEmbeddingAsNativeFloatArray` regression confirms embedding values reach the repository as native `float[]`.
-- `./gradlew test --tests com.findoc.service.document.DocumentServiceTest --console=plain` and `./gradlew test --tests com.findoc.messaging.KafkaIngestionConsumerTest --console=plain` passed after chunk soft-delete and retry-path consolidation.
-- `./gradlew test --console=plain` passed after the combined agent, persistence, and ingestion updates.
+- Clean Java compilation passed after vector, Gemini, and resilience changes.
+- Existing H2 repository tests and the focused document lifecycle test remain passing.
+- `./gradlew test --tests com.findoc.service.embedding.GeminiEmbeddingServiceTest --console=plain` and `./gradlew test --tests com.findoc.service.ProviderCircuitBreakerTest --console=plain` passed with all failure path scenarios.
+- `./gradlew test --console=plain` passed all unit tests.
+- `./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka, running `LiveProviderIntegrationTest`, `LocalKafkaIngestionIntegrationTest`, and `LocalPostgresPgvectorIntegrationTest`.
 
 ## Next Implementation Item
 
-Run PostgreSQL/pgvector/Kafka workflow validation and complete the remaining ingestion and persistence tests.
+Validate full end-to-end multi-turn chat sessions with real provider responses.

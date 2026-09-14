@@ -1,7 +1,7 @@
 # Story 002: Persistence and Tenant Isolation
 
 ## Status
-Complete for current POC; runtime integration validation remains
+Complete
 
 ## Completed Work
 
@@ -34,7 +34,9 @@ Complete for current POC; runtime integration validation remains
 
 - Ran `./gradlew clean test --console=plain` in `findoc-agent` after the asynchronous ingestion changes.
 - Result: `BUILD SUCCESSFUL` and exit code 0.
+- Ran `./gradlew localIntegrationTest --console=plain` against local PostgreSQL database `findoc-test-db` and local Kafka.
+- Result: `BUILD SUCCESSFUL`; Liquibase migrations and PostgreSQL persistence were validated with tenant-scoped integration assertions.
 
 ## Next Implementation Item
 
-Add Gemini embeddings and pgvector persistence to the ingestion pipeline, with tenant-scoped vector retrieval.
+Complete provider failure-path coverage and live provider validation.
