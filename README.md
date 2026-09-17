@@ -4,16 +4,31 @@ FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial docume
 
 ## Features
 
-- JWT-based authentication that carries `tenant_id` and `user_id`, with tenant-scoped persistence and request tracing.
-- PDF and text document upload, source-file storage, status tracking, original-file download, soft deletion, and a 20 MB servlet multipart limit.
-- Kafka-backed ingestion with PDF/text extraction, retry tracking, and dead-letter topic routing.
-- Content chunking at 512 tokens with a 50-token overlap, including page metadata for PDF sources.
-- Gemini embeddings and pgvector cosine-similarity retrieval with tenant and document filters.
-- Bounded agent queries with intent classification, a five-iteration maximum, structured citations, session history, and stage-level query traces.
-- Document comparison that retrieves evidence independently for each requested document.
-- Gemini embeddings and OpenRouter generation with response validation, circuit-breaker settings, and fallback behavior.
-- Liquibase-managed database migrations, seeded local demo data, and file-based request logging with trace context.
-- Basic React frontend with login, document upload/status management, and session-aware agent queries.
+The feature set is deliberately shaped around the lifecycle of a financial document rather than a generic chatbot demo:
+
+- **Secure tenancy first:** JWTs carry `tenant_id` and `user_id`, and those claims flow into request tracing and every persistence query. This demonstrates the isolation boundary that a multi-customer document product needs.
+- **Durable document intake:** PDF and text uploads are stored with status tracking, original-file download, soft deletion, and a 20 MB limit. The source remains auditable even while asynchronous processing is still running.
+- **Asynchronous ingestion:** Kafka separates the upload request from extraction and indexing. Retry tracking and a dead-letter topic make failed processing observable and recoverable instead of blocking the API request.
+- **Retrieval-ready content:** Documents are chunked into 512-token sections with 50-token overlap and page metadata. The overlap preserves context at boundaries while page data keeps citations useful to a reviewer.
+- **Tenant-safe semantic search:** Gemini embeddings and PostgreSQL/pgvector cosine retrieval filter by tenant and selected documents. This keeps relevance useful without weakening authorization.
+- **Bounded agent behavior:** Intent classification, a five-iteration ceiling, session history, structured citations, and stage-level traces make the agent inspectable and operationally bounded.
+- **Evidence-based comparison:** Comparison retrieves evidence independently for each requested document, reducing the risk that one document silently dominates the result.
+- **Provider resilience:** Gemini handles embeddings while OpenRouter handles generation, with response validation, circuit breakers, and local fallback behavior for generation failures. Provider responsibilities stay explicit and replaceable.
+- **Operational foundations:** Liquibase migrations, seeded local demo data, request logging with trace context, and a small React workflow make the system demonstrable from upload through grounded answer.
+
+## Architecture
+
+The diagram below shows the main request and data paths, including where the tenant boundary is enforced and where asynchronous processing begins.
+
+![FinDocAgent architecture diagram](docs/architecture-diagram.svg)
+
+The editable diagram source and a short explanation of the design decisions are in [docs/story-012-architecture-and-portfolio-positioning.md](docs/story-012-architecture-and-portfolio-positioning.md).
+
+## Why I Built This
+
+I built FinDocAgent as a portfolio project targeted at Singapore's financial-services market. The domain is a useful test of production-minded document intelligence: financial teams need to find answers in regulated documents, retain evidence for review, and keep customer data isolated when the same platform serves multiple organizations.
+
+That target shaped the architecture. The project treats multi-tenancy, auditability, asynchronous ingestion, source citations, provider failure, and bounded agent behavior as first-class concerns rather than polishing them after a chatbot prototype works. It is intended to show how an AI feature can fit into the controls, operational expectations, and document-heavy workflows common to Singapore fintech, banking, insurance, and compliance products.
 
 ## Product Screenshots
 
@@ -140,4 +155,6 @@ Use this account only for local development. See the [developer guide](docs/dev-
 
 ## Development Status
 
-The application’s core document, retrieval, and agent flows are implemented. Live PostgreSQL/pgvector, Kafka, Gemini, and OpenRouter validation remains an environment-dependent checkpoint. The current implementation status and handoffs are tracked in [docs/implementation-status.md](docs/implementation-status.md).
+FinDocAgent is an implemented, locally validated end-to-end system rather than a prototype. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, chunking, Gemini embeddings, pgvector cosine retrieval, bounded agent workflows, session-aware generation, citations, explain traces, document comparison, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, and grounded session-aware querying.
+
+The automated coverage includes controller contracts, OpenAPI metadata, provider failure paths, tenant isolation, soft deletion, BYTEA-backed source storage, Kafka publication and consumption, ingestion readiness, native `<=>` retrieval, and live Gemini/OpenRouter interactions. The full unit suite and local integration suite pass against PostgreSQL/pgvector and Kafka.
