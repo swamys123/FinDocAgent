@@ -372,7 +372,29 @@ Sample response:
   "queryId": "fce381db-c5d8-4a8e-b9d9-cf08436c522f",
   "query": "Summarize the key financial risks in the uploaded document.",
   "intent": "SUMMARISE",
-  "fullTrace": ["classify_intent", "vector_search", "generate_report"],
+  "fullTrace": [
+    {
+      "step": 1,
+      "tool": "classify_intent",
+      "input": { "query": "Summarize the key financial risks in the uploaded document." },
+      "output": { "intent": "SUMMARISE" },
+      "durationMs": 2
+    },
+    {
+      "step": 2,
+      "tool": "vector_search",
+      "input": { "topK": 5, "documentIds": [] },
+      "output": { "chunksFound": 5, "topScore": 0.87, "scores": [0.87, 0.83] },
+      "durationMs": 24
+    },
+    {
+      "step": 3,
+      "tool": "generate_report",
+      "input": { "chunkCount": 5, "format": "summary" },
+      "output": { "answerLength": 634 },
+      "durationMs": 298
+    }
+  ],
   "totalDurationMs": 324
 }
 ```

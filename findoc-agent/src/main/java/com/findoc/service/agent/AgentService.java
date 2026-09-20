@@ -6,6 +6,7 @@ import com.findoc.dto.response.AgentSessionResponse;
 import com.findoc.dto.response.AgentResponse;
 import com.findoc.dto.response.AgentSourceResponse;
 import com.findoc.dto.response.AgentTraceResponse;
+import com.findoc.dto.response.AgentTraceStepResponse;
 import com.findoc.dto.response.DocumentComparisonResponse;
 import com.findoc.dto.response.SessionMessageResponse;
 import com.findoc.entity.AgentSession;
@@ -23,11 +24,15 @@ import com.findoc.repository.UserRepository;
 import com.findoc.service.embedding.EmbeddingService;
 import com.findoc.util.TenantContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.*;
 
@@ -79,10 +84,17 @@ public class AgentService {
         UUID tenantId = TenantContext.tenantId();
         UUID userId = TenantContext.userId();
         List<UUID> ids = request.documentIds() == null ? List.of() : request.documentIds();
+        long classificationStartedAt = System.nanoTime();
         String intent = intentClassifier.classify(request.query());
         List<String> steps = new ArrayList<>();
         steps.add("classify_intent");
+        List<AgentTraceStepResponse> traceSteps = new ArrayList<>();
+        traceSteps.add(traceStep(1, "classify_intent",
+            objectNode().put("query", bounded(request.query(), 500)),
+            objectNode().put("intent", intent),
+            elapsedMs(classificationStartedAt)));
 
+        long vectorSearchStartedAt = System.nanoTime();
         float[] queryEmbedding = embeddingService.embed(request.query());
         List<DocumentChunk> matches = ids.isEmpty()
             ? chunkRepository.searchSimilar(queryEmbedding, tenantId, topK)
@@ -90,6 +102,18 @@ public class AgentService {
 
         List<String> sourceChunks = matches.stream().map(DocumentChunk::getContent).limit(topK).toList();
         steps.add("vector_search");
+        ArrayNode scores = objectMapper.createArrayNode();
+        matches.stream().limit(topK).map(match -> cosineSimilarity(match.getEmbedding(), queryEmbedding))
+            .forEach(scores::add);
+        ObjectNode vectorInput = objectNode().put("topK", topK);
+        ArrayNode documentIds = objectMapper.createArrayNode();
+        ids.forEach(id -> documentIds.add(id.toString()));
+        vectorInput.set("documentIds", documentIds);
+        traceSteps.add(traceStep(2, "vector_search", vectorInput,
+            objectNode().put("chunksFound", matches.size())
+                .put("topScore", scores.isEmpty() ? 0.0 : scores.get(0).asDouble())
+                .set("scores", scores),
+            elapsedMs(vectorSearchStartedAt)));
 
         User user = userRepository.findByIdAndTenantIdAndDeletedAtIsNull(userId, tenantId)
             .orElseThrow(() -> new IllegalStateException("User not found in tenant context"));
@@ -109,10 +133,15 @@ public class AgentService {
         List<SessionMessage> history = sessionId.equals(request.sessionId())
             ? recentHistory(messageRepository.findBySessionIdAndTenantIdAndUserIdOrderByCreatedAtAsc(sessionId, tenantId, userId))
             : List.of();
+        long generationStartedAt = System.nanoTime();
         String answer = generationService.generate(request.query(), intent, sourceChunks, history);
         if (answer == null || answer.isBlank()) {
             answer = sourceChunks.isEmpty() ? "No indexed content matched the query." : "Relevant content found in " + sourceChunks.size() + " chunk(s).";
         }
+        traceSteps.add(traceStep(3, "generate_report",
+            objectNode().put("chunkCount", sourceChunks.size()).put("format", "summary"),
+            objectNode().put("answerLength", answer.length()),
+            elapsedMs(generationStartedAt)));
 
         messageRepository.save(new SessionMessage(session, "user", request.query()));
         messageRepository.save(new SessionMessage(session, "assistant", answer));
@@ -122,7 +151,7 @@ public class AgentService {
             user.getTenant(),
             request.query(),
             intent,
-            String.join("|", steps),
+            serializeTrace(traceSteps),
             answer,
             sourceChunks.isEmpty() ? BigDecimal.ZERO : new BigDecimal("0.75"),
             (int) ((System.nanoTime() - startedAt) / 1_000_000)
@@ -150,17 +179,33 @@ public class AgentService {
             .orElseThrow(() -> new IllegalStateException("User not found in tenant context"));
 
         float[] embedding = embeddingService.embed(request.aspect());
-    float[] queryEmbedding = embedding;
+        float[] queryEmbedding = embedding;
+        long documentASearchStartedAt = System.nanoTime();
         List<DocumentChunk> chunksA = chunkRepository.searchSimilarInDocuments(queryEmbedding, tenantId, List.of(documentA.getId()), topK);
+        int documentASearchDurationMs = elapsedMs(documentASearchStartedAt);
+        long documentBSearchStartedAt = System.nanoTime();
         List<DocumentChunk> chunksB = chunkRepository.searchSimilarInDocuments(queryEmbedding, tenantId, List.of(documentB.getId()), topK);
+        int documentBSearchDurationMs = elapsedMs(documentBSearchStartedAt);
         List<String> sourcesA = chunksA.stream().map(DocumentChunk::getContent).toList();
         List<String> sourcesB = chunksB.stream().map(DocumentChunk::getContent).toList();
         List<String> comparisonContext = new ArrayList<>();
         comparisonContext.addAll(sourcesA);
         comparisonContext.addAll(sourcesB);
 
+        long generationStartedAt = System.nanoTime();
         OpenRouterGenerationService.ComparisonGeneration comparison = generationService.compare(request.aspect(), sourcesA, sourcesB);
         String summary = comparison.summary();
+        List<AgentTraceStepResponse> traceSteps = List.of(
+            traceStep(1, "vector_search_document_a",
+                objectNode().put("topK", topK).put("documentId", documentA.getId().toString()),
+                objectNode().put("chunksFound", chunksA.size()), documentASearchDurationMs),
+            traceStep(2, "vector_search_document_b",
+                objectNode().put("topK", topK).put("documentId", documentB.getId().toString()),
+                objectNode().put("chunksFound", chunksB.size()), documentBSearchDurationMs),
+            traceStep(3, "generate_report",
+                objectNode().put("chunkCount", comparisonContext.size()).put("format", "comparison"),
+                objectNode().put("answerLength", summary == null ? 0 : summary.length()), elapsedMs(generationStartedAt))
+        );
         AgentSession session = sessionRepository.save(new AgentSession(user.getTenant(), user));
         messageRepository.save(new SessionMessage(session, "user", request.aspect()));
         messageRepository.save(new SessionMessage(session, "assistant", summary));
@@ -169,7 +214,7 @@ public class AgentService {
             user.getTenant(),
             request.aspect(),
             "COMPARE",
-            "vector_search_document_a|vector_search_document_b|generate_report",
+            serializeTrace(traceSteps),
             summary,
             comparisonContext.isEmpty() ? BigDecimal.ZERO : new BigDecimal("0.75"),
             (int) ((System.nanoTime() - startedAt) / 1_000_000)
@@ -206,10 +251,56 @@ public class AgentService {
         UUID userId = TenantContext.userId();
         QueryTrace trace = traceRepository.findByIdAndTenantIdAndUserId(queryId, tenantId, userId)
             .orElseThrow(() -> new NoSuchElementException("Query trace not found"));
-        List<String> steps = trace.getSteps() == null || trace.getSteps().isBlank()
-            ? List.of()
-            : List.of(trace.getSteps().split("\\|"));
+        List<AgentTraceStepResponse> steps = deserializeTrace(trace.getSteps());
         return new AgentTraceResponse(trace.getId(), trace.getQuery(), trace.getIntent(), steps, trace.getDurationMs());
+    }
+
+    private AgentTraceStepResponse traceStep(int step, String tool, JsonNode input, JsonNode output, Integer durationMs) {
+        return new AgentTraceStepResponse(step, tool, input, output, durationMs);
+    }
+
+    private String serializeTrace(List<AgentTraceStepResponse> trace) {
+        try {
+            return objectMapper.writeValueAsString(trace);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Unable to serialize query trace", exception);
+        }
+    }
+
+    private List<AgentTraceStepResponse> deserializeTrace(String serializedTrace) {
+        if (serializedTrace == null || serializedTrace.isBlank()) {
+            return List.of();
+        }
+        try {
+            JsonNode node = objectMapper.readTree(serializedTrace);
+            if (node.isArray()) {
+                return objectMapper.readerForListOf(AgentTraceStepResponse.class).readValue(node);
+            }
+        } catch (IOException exception) {
+            return legacyTrace(serializedTrace);
+        }
+        return legacyTrace(serializedTrace);
+    }
+
+    private List<AgentTraceStepResponse> legacyTrace(String serializedTrace) {
+        List<AgentTraceStepResponse> result = new ArrayList<>();
+        String[] legacySteps = serializedTrace.split("\\|");
+        for (int index = 0; index < legacySteps.length; index++) {
+            result.add(traceStep(index + 1, legacySteps[index], objectNode(), objectNode(), null));
+        }
+        return result;
+    }
+
+    private ObjectNode objectNode() {
+        return objectMapper.createObjectNode();
+    }
+
+    private int elapsedMs(long startedAt) {
+        return (int) ((System.nanoTime() - startedAt) / 1_000_000);
+    }
+
+    private String bounded(String value, int maxLength) {
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
     private AgentSourceResponse toSourceResponse(DocumentChunk chunk, float[] queryEmbedding) {

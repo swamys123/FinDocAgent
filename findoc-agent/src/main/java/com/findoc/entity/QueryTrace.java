@@ -1,11 +1,14 @@
 package com.findoc.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
 import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+
+import static org.hibernate.type.SqlTypes.JSON;
 
 @Entity
 @Table(name = "query_traces")
@@ -31,7 +34,8 @@ public class QueryTrace {
     @Column(name = "intent", length = 50)
     private String intent;
 
-    @Column(name = "steps", columnDefinition = "TEXT")
+    @JdbcTypeCode(JSON)
+    @Column(name = "steps", columnDefinition = "jsonb")
     private String steps;
 
     @Column(name = "answer", columnDefinition = "TEXT")

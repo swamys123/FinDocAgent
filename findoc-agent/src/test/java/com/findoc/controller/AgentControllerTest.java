@@ -4,6 +4,8 @@ import com.findoc.config.SecurityConfig;
 import com.findoc.dto.response.AgentResponse;
 import com.findoc.dto.response.AgentSessionResponse;
 import com.findoc.dto.response.AgentTraceResponse;
+import com.findoc.dto.response.AgentTraceStepResponse;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.findoc.dto.response.DocumentComparisonResponse;
 import com.findoc.service.agent.AgentService;
 import com.findoc.service.auth.JwtService;
@@ -86,12 +88,19 @@ class AgentControllerTest {
     @Test
     void explainReturnsTrace() throws Exception {
         UUID queryId = UUID.randomUUID();
-        when(agentService.explain(queryId)).thenReturn(new AgentTraceResponse(queryId, "What is the revenue?", "FACTUAL", List.of("classify_intent"), 42));
+        when(agentService.explain(queryId)).thenReturn(new AgentTraceResponse(queryId, "What is the revenue?", "FACTUAL",
+            List.of(new AgentTraceStepResponse(1, "classify_intent",
+                JsonNodeFactory.instance.objectNode().put("query", "What is the revenue?"),
+                JsonNodeFactory.instance.objectNode().put("intent", "FACTUAL"), 48)), 42));
 
         mockMvc.perform(get("/api/v1/agent/explain/{queryId}", queryId).with(user("demo")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.queryId").value(queryId.toString()))
-            .andExpect(jsonPath("$.fullTrace[0]").value("classify_intent"));
+            .andExpect(jsonPath("$.fullTrace[0].step").value(1))
+            .andExpect(jsonPath("$.fullTrace[0].tool").value("classify_intent"))
+            .andExpect(jsonPath("$.fullTrace[0].input.query").value("What is the revenue?"))
+            .andExpect(jsonPath("$.fullTrace[0].output.intent").value("FACTUAL"))
+            .andExpect(jsonPath("$.fullTrace[0].durationMs").value(48));
     }
 
     @Test

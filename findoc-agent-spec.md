@@ -419,12 +419,34 @@ Returns the original uploaded file as an attachment. The document must belong to
   "queryId": "1a2b3c4d-...",
   "query": "What are the penalty clauses?",
   "intent": "LOOKUP",
-  "fullTrace": ["classify_intent", "vector_search", "generate_report"],
+  "fullTrace": [
+    {
+      "step": 1,
+      "tool": "classify_intent",
+      "input": { "query": "What are the penalty clauses?" },
+      "output": { "intent": "LOOKUP" },
+      "durationMs": 48
+    },
+    {
+      "step": 2,
+      "tool": "vector_search",
+      "input": { "topK": 5, "documentIds": [] },
+      "output": { "chunksFound": 5, "topScore": 0.87, "scores": [0.87, 0.83] },
+      "durationMs": 298
+    },
+    {
+      "step": 3,
+      "tool": "generate_report",
+      "input": { "chunkCount": 5, "format": "summary" },
+      "output": { "answerLength": 634 },
+      "durationMs": 4163
+    }
+  ],
   "totalDurationMs": 3241
 }
 ```
 
-The current trace records ordered stage names and total duration. Structured per-stage tool inputs, outputs, and timings are future work.
+Trace inputs and outputs are bounded audit metadata. Raw document chunks and the complete generated answer are not duplicated in the trace. Historical pipe-delimited traces are returned as structured steps with empty input/output objects and unavailable durations.
 
 ---
 
@@ -1068,7 +1090,7 @@ The integration task requires an accessible Podman socket. Swagger UI is future 
 1. **Multi-tenant data isolation** — every vector search is scoped by tenant_id.
 2. **Async ingestion via Kafka** — upload returns in <200ms; processing is decoupled with DLQ for resilience
 3. **Bounded retrieval and generation** — intent classification, tenant-scoped retrieval, and a five-iteration configuration guard.
-4. **Auditability** — `/explain` returns recorded query stages and total duration; richer tool-event traces are planned.
+4. **Auditability** — `/explain` returns structured, bounded tool-event traces with per-stage timings and total duration.
 5. **Production patterns** — circuit breakers on external APIs, structured logging with trace IDs, Liquibase migrations, Actuator health checks
 6. **Local-first validation** — the application uses local PostgreSQL and Kafka, with provider-backed validation when credentials are injected.
 

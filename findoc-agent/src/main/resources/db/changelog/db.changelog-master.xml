@@ -9,4 +9,5 @@
     <include file="classpath:/db/changelog/db.changelog-002-vector.xml"/>
     <include file="classpath:/db/changelog/db.changelog-003-ingestion.xml"/>
     <include file="classpath:/db/changelog/db.changelog-004-chunk-soft-delete.xml"/>
+    <include file="classpath:/db/changelog/db.changelog-005-structured-query-traces.xml"/>
 </databaseChangeLog>
