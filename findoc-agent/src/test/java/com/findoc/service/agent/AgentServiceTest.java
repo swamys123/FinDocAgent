@@ -139,6 +139,43 @@ class AgentServiceTest {
     }
 
     @Test
+    void recentTracesReturnsSummariesForCurrentUserAndTenantOrderedByCreatedAt() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Tenant tenant = new Tenant("Demo");
+        User user = new User(tenant, "demo@findoc.local", "demo@findoc.local", "hash");
+        AgentSession session = new AgentSession(tenant, user);
+        setId(session, UUID.randomUUID());
+        QueryTrace trace = new QueryTrace(session, tenant, "What is the revenue?", "LOOKUP",
+            "[]", "The answer", java.math.BigDecimal.valueOf(0.75), 100);
+        setId(trace, UUID.randomUUID());
+        TenantContext.set(tenantId, userId);
+        when(traceRepository.findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId))
+            .thenReturn(java.util.List.of(trace));
+
+        java.util.List<com.findoc.dto.response.QueryTraceSummaryResponse> summaries = service.recentTraces();
+
+        assertThat(summaries).singleElement().satisfies(summary -> {
+            assertThat(summary.queryId()).isEqualTo(trace.getId());
+            assertThat(summary.query()).isEqualTo("What is the revenue?");
+            assertThat(summary.intent()).isEqualTo("LOOKUP");
+            assertThat(summary.durationMs()).isEqualTo(100);
+        });
+        verify(traceRepository).findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId);
+    }
+
+    @Test
+    void recentTracesReturnsEmptyListWhenNoTracesExist() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        TenantContext.set(tenantId, userId);
+        when(traceRepository.findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId))
+            .thenReturn(java.util.List.of());
+
+        assertThat(service.recentTraces()).isEmpty();
+    }
+
+    @Test
     void passesRecentSessionHistoryToGeneration() throws Exception {
         UUID tenantId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();

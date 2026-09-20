@@ -8,6 +8,7 @@ import com.findoc.dto.response.AgentSourceResponse;
 import com.findoc.dto.response.AgentTraceResponse;
 import com.findoc.dto.response.AgentTraceStepResponse;
 import com.findoc.dto.response.DocumentComparisonResponse;
+import com.findoc.dto.response.QueryTraceSummaryResponse;
 import com.findoc.dto.response.SessionMessageResponse;
 import com.findoc.entity.AgentSession;
 import com.findoc.entity.Document;
@@ -253,6 +254,16 @@ public class AgentService {
             .orElseThrow(() -> new NoSuchElementException("Query trace not found"));
         List<AgentTraceStepResponse> steps = deserializeTrace(trace.getSteps());
         return new AgentTraceResponse(trace.getId(), trace.getQuery(), trace.getIntent(), steps, trace.getDurationMs());
+    }
+
+    @Transactional(readOnly = true)
+    public List<QueryTraceSummaryResponse> recentTraces() {
+        UUID tenantId = TenantContext.tenantId();
+        UUID userId = TenantContext.userId();
+        return traceRepository.findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId)
+            .stream()
+            .map(trace -> new QueryTraceSummaryResponse(trace.getId(), trace.getQuery(), trace.getIntent(), trace.getDurationMs(), trace.getCreatedAt()))
+            .toList();
     }
 
     private AgentTraceStepResponse traceStep(int step, String tool, JsonNode input, JsonNode output, Integer durationMs) {

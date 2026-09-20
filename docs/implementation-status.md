@@ -41,6 +41,10 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 012 | [Architecture and portfolio positioning](story-012-architecture-and-portfolio-positioning.md) | Complete | Keep the architecture diagram aligned with runtime changes |
 
+| Story 013 | [Structured explain traces](story-013-structured-explain-traces.md) | Complete | Validate the new Liquibase migration against the live PostgreSQL stack with existing trace rows |
+
+| Story 014 | [Recent traces listing UI](story-014-recent-traces-listing.md) | Complete | Run the full unit suite and manually validate `/traces` against the live PostgreSQL/Kafka stack |
+
 ## Priority Order
 
 1. Validate PostgreSQL/Liquibase schema, pgvector persistence/retrieval, Kafka ingestion, retry/DLQ behavior, and tenant isolation against the real local stack.

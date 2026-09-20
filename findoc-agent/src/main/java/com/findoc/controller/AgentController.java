@@ -6,9 +6,11 @@ import com.findoc.dto.response.AgentSessionResponse;
 import com.findoc.dto.response.AgentResponse;
 import com.findoc.dto.response.AgentTraceResponse;
 import com.findoc.dto.response.DocumentComparisonResponse;
+import com.findoc.dto.response.QueryTraceSummaryResponse;
 import com.findoc.service.agent.AgentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -17,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -55,4 +58,10 @@ public class AgentController {
         @ApiResponse(responseCode = "404", description = "Query trace not found")
     })
     public AgentTraceResponse explain(@Parameter(description = "Query identifier", required = true) @PathVariable UUID queryId) { return service.explain(queryId); }
+    @GetMapping("/traces/recent")
+    @Operation(summary = "List the caller's most recent query traces", responses = {
+        @ApiResponse(responseCode = "200", description = "Recent traces returned", content = @Content(array = @ArraySchema(schema = @Schema(implementation = QueryTraceSummaryResponse.class)))),
+        @ApiResponse(responseCode = "401", description = "Authentication required")
+    })
+    public List<QueryTraceSummaryResponse> recentTraces() { return service.recentTraces(); }
 }

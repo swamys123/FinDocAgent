@@ -104,6 +104,29 @@ class AgentControllerTest {
     }
 
     @Test
+    void recentTracesReturnsSummaries() throws Exception {
+        UUID queryId = UUID.randomUUID();
+        when(agentService.recentTraces()).thenReturn(List.of(
+            new com.findoc.dto.response.QueryTraceSummaryResponse(queryId, "What is the revenue?", "FACTUAL", 42,
+                java.time.Instant.parse("2026-09-20T00:00:00Z"))));
+
+        mockMvc.perform(get("/api/v1/agent/traces/recent").with(user("demo")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].queryId").value(queryId.toString()))
+            .andExpect(jsonPath("$[0].query").value("What is the revenue?"))
+            .andExpect(jsonPath("$[0].intent").value("FACTUAL"))
+            .andExpect(jsonPath("$[0].durationMs").value(42));
+    }
+
+    @Test
+    void protectedRecentTracesRouteRejectsAnonymousRequest() throws Exception {
+        mockMvc.perform(get("/api/v1/agent/traces/recent"))
+            .andExpect(status().isForbidden());
+
+        verify(agentService, never()).recentTraces();
+    }
+
+    @Test
     void queryRejectsBlankQuery() throws Exception {
         mockMvc.perform(post("/api/v1/agent/query").with(user("demo"))
                 .contentType(MediaType.APPLICATION_JSON)
