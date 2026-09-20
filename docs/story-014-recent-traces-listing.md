@@ -15,6 +15,7 @@ Complete
 - Added `src/api/traces.ts` with `listRecentTraces()` and `explainTrace()` using the existing `apiRequest` client pattern.
 - Added `TracesPage.tsx`: lists the last 5 queries as cards (query text, intent, duration, timestamp); clicking a row lazily fetches and expands an inline panel rendering each `fullTrace` step (tool, duration, pretty-printed input/output JSON), with per-row loading/error state and result caching.
 - Wired the `/traces` route (protected, `AppLayout`) into `App.tsx` and added a "Traces" link to `NavBar.tsx`.
+- Added recruiter-facing README documentation and screenshots for the second query, recent-query listing, and backend execution trace.
 
 ## Pending Work
 
