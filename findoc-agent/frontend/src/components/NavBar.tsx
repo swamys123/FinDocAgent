@@ -17,6 +17,9 @@ export function NavBar() {
         <NavLink to="/query" className={linkClass}>
           Query
         </NavLink>
+        <NavLink to="/traces" className={linkClass}>
+          Traces
+        </NavLink>
       </div>
       <div className="flex items-center gap-3 text-sm text-gray-600">
         <span>{username}</span>

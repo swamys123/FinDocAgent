@@ -3,6 +3,7 @@ package com.findoc.service.agent;
 import com.findoc.dto.request.AgentQueryRequest;
 import com.findoc.dto.request.DocumentComparisonRequest;
 import com.findoc.dto.response.AgentResponse;
+import com.findoc.dto.response.AgentTraceResponse;
 import com.findoc.dto.response.DocumentComparisonResponse;
 import com.findoc.entity.AgentSession;
 import com.findoc.entity.Document;
@@ -24,6 +25,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -105,6 +107,72 @@ class AgentServiceTest {
         });
         verify(messageRepository, org.mockito.Mockito.times(2)).save(any());
         verify(traceRepository).save(any());
+        verify(traceRepository).save(org.mockito.ArgumentMatchers.argThat(trace -> trace.getSteps().startsWith("[")));
+    }
+
+    @Test
+    void explainsStructuredTraceForCurrentUserAndTenant() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        UUID queryId = UUID.randomUUID();
+        Tenant tenant = new Tenant("Demo");
+        User user = new User(tenant, "demo@findoc.local", "demo@findoc.local", "hash");
+        AgentSession session = new AgentSession(tenant, user);
+        setId(session, UUID.randomUUID());
+        QueryTrace trace = new QueryTrace(session, tenant, "What is the revenue?", "LOOKUP",
+            "[{\"step\":1,\"tool\":\"classify_intent\",\"input\":{\"query\":\"What is the revenue?\"},\"output\":{\"intent\":\"LOOKUP\"},\"durationMs\":48}]",
+            "The answer", java.math.BigDecimal.valueOf(0.75), 100);
+        setId(trace, queryId);
+        TenantContext.set(tenantId, userId);
+        when(traceRepository.findByIdAndTenantIdAndUserId(queryId, tenantId, userId)).thenReturn(Optional.of(trace));
+
+        AgentTraceResponse response = service.explain(queryId);
+
+        assertThat(response.fullTrace()).singleElement().satisfies(step -> {
+            assertThat(step.step()).isEqualTo(1);
+            assertThat(step.tool()).isEqualTo("classify_intent");
+            assertThat(step.input().path("query").asText()).isEqualTo("What is the revenue?");
+            assertThat(step.output().path("intent").asText()).isEqualTo("LOOKUP");
+            assertThat(step.durationMs()).isEqualTo(48);
+        });
+        verify(traceRepository).findByIdAndTenantIdAndUserId(queryId, tenantId, userId);
+    }
+
+    @Test
+    void recentTracesReturnsSummariesForCurrentUserAndTenantOrderedByCreatedAt() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        Tenant tenant = new Tenant("Demo");
+        User user = new User(tenant, "demo@findoc.local", "demo@findoc.local", "hash");
+        AgentSession session = new AgentSession(tenant, user);
+        setId(session, UUID.randomUUID());
+        QueryTrace trace = new QueryTrace(session, tenant, "What is the revenue?", "LOOKUP",
+            "[]", "The answer", java.math.BigDecimal.valueOf(0.75), 100);
+        setId(trace, UUID.randomUUID());
+        TenantContext.set(tenantId, userId);
+        when(traceRepository.findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId))
+            .thenReturn(java.util.List.of(trace));
+
+        java.util.List<com.findoc.dto.response.QueryTraceSummaryResponse> summaries = service.recentTraces();
+
+        assertThat(summaries).singleElement().satisfies(summary -> {
+            assertThat(summary.queryId()).isEqualTo(trace.getId());
+            assertThat(summary.query()).isEqualTo("What is the revenue?");
+            assertThat(summary.intent()).isEqualTo("LOOKUP");
+            assertThat(summary.durationMs()).isEqualTo(100);
+        });
+        verify(traceRepository).findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId);
+    }
+
+    @Test
+    void recentTracesReturnsEmptyListWhenNoTracesExist() {
+        UUID tenantId = UUID.randomUUID();
+        UUID userId = UUID.randomUUID();
+        TenantContext.set(tenantId, userId);
+        when(traceRepository.findTop5BySession_User_IdAndTenant_IdOrderByCreatedAtDesc(userId, tenantId))
+            .thenReturn(java.util.List.of());
+
+        assertThat(service.recentTraces()).isEmpty();
     }
 
     @Test

@@ -59,6 +59,10 @@ echo "Retrieving query explanation..."
 curl -sS "$HOST/api/v1/agent/explain/$QUERY_ID" -H "Authorization: Bearer $TOKEN"
 echo
 
+echo "Listing recent query traces..."
+curl -sS "$HOST/api/v1/agent/traces/recent" -H "Authorization: Bearer $TOKEN"
+echo
+
 echo "Sending a session-aware follow-up query..."
 FOLLOWUP_RESPONSE=$(curl -sS -X POST "$HOST/api/v1/agent/query" \
   -H 'Content-Type: application/json' \

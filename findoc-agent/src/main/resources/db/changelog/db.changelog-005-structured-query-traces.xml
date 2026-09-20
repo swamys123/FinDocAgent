@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="005-structured-query-traces" author="findoc">
+        <sql splitStatements="false"><![CDATA[
+            CREATE OR REPLACE FUNCTION pg_temp.findoc_legacy_steps_to_jsonb(steps text)
+            RETURNS JSONB AS $findoc$
+                SELECT jsonb_agg(
+                    jsonb_build_object(
+                        'step', legacy.step_number,
+                        'tool', legacy.step_name,
+                        'input', '{}'::jsonb,
+                        'output', '{}'::jsonb,
+                        'durationMs', NULL
+                    ) ORDER BY legacy.step_number
+                )
+                FROM unnest(string_to_array(steps, '|')) WITH ORDINALITY AS legacy(step_name, step_number)
+            $findoc$ LANGUAGE sql IMMUTABLE;
+
+            ALTER TABLE query_traces
+            ALTER COLUMN steps TYPE JSONB
+            USING CASE
+                WHEN steps IS NULL OR btrim(steps) = '' THEN '[]'::jsonb
+                WHEN left(btrim(steps), 1) = '[' THEN steps::jsonb
+                ELSE pg_temp.findoc_legacy_steps_to_jsonb(steps)
+            END;
+
+            DROP FUNCTION pg_temp.findoc_legacy_steps_to_jsonb(text);
+        ]]></sql>
+    </changeSet>
+</databaseChangeLog>

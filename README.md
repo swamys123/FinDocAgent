@@ -46,6 +46,26 @@ Ask questions against selected documents and review the generated answer, detect
 
 ![FinDocAgent grounded query screen](screens/Document_Query.png)
 
+### Query 2: Traceable Retrieval and Explainability
+
+The second demonstrated query asks: **“What are the response and resolution times for a P1 critical incident versus a P4 low priority incident?”** It shows the same grounded workflow with a different business question and makes the audit trail visible to a reviewer.
+
+![FinDocAgent Query 2 answer with sources](screens/Document%20Query%202.png)
+
+The query is executed through the backend in five visible stages:
+
+1. **classify_intent:** The system identifies what kind of question is being asked.
+2. **vector_search:** It finds the most relevant passages in the selected documents while respecting the user's document access.
+3. **generate_report:** It uses those passages and the current conversation context to produce a grounded answer with source citations.
+4. **Persist the conversation:** The question and answer are saved so the session can continue naturally.
+5. **Persist the trace:** The system records the intent, confidence, timings, and stage results so the answer can be reviewed later.
+
+The Recent Queries page shows the user's latest questions in one place. Selecting **Explain** opens the recorded `classify_intent`, `vector_search`, and `generate_report` stages, including their timings and a concise view of what each stage received and produced. This gives reviewers a practical explanation of how the answer was formed without exposing internal implementation details.
+
+![FinDocAgent recent document queries](screens/Recent%20Document%20Queries.png)
+
+![FinDocAgent Query 2 backend execution trace](screens/Document%20Query%202%20Explained.png)
+
 ## Requirements
 
 | Software | Required version or setup |
@@ -139,7 +159,7 @@ npm run build
 npm run lint
 ```
 
-The current frontend scope includes login, document upload/list/status polling/delete, document selection, and session-aware querying. Session history, document comparison, and query explanation remain backend API workflows without dedicated frontend screens.
+The current frontend scope includes login, document upload/list/status polling/delete, document selection, session-aware querying, recent query listing, and expandable explain traces. Session history and document comparison remain backend API workflows without dedicated frontend screens.
 
 ## Local Demo Data
 

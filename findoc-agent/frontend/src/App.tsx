@@ -7,6 +7,7 @@ import { NavBar } from './components/NavBar';
 import { LoginPage } from './pages/LoginPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { QueryPage } from './pages/QueryPage';
+import { TracesPage } from './pages/TracesPage';
 
 function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -40,6 +41,16 @@ function App() {
                 <ProtectedRoute>
                   <AppLayout>
                     <QueryPage />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/traces"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <TracesPage />
                   </AppLayout>
                 </ProtectedRoute>
               }

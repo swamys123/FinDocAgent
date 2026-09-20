@@ -34,3 +34,28 @@ export interface AgentResponse {
   stepsTaken: string[];
   confidence: number;
 }
+
+export interface QueryTraceSummary {
+  queryId: string;
+  query: string;
+  intent: string;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface AgentTraceStep {
+  step: number;
+  tool: string;
+  input: unknown;
+  output: unknown;
+  durationMs: number;
+}
+
+export interface AgentTraceResponse {
+  queryId: string;
+  query: string;
+  intent: string;
+  fullTrace: AgentTraceStep[];
+  totalDurationMs: number;
+}
+

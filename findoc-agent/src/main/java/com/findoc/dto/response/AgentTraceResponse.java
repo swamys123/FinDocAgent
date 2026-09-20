@@ -7,7 +7,7 @@ public record AgentTraceResponse(
     UUID queryId,
     String query,
     String intent,
-    List<String> fullTrace,
+    List<AgentTraceStepResponse> fullTrace,
     Integer totalDurationMs
 ) {
 }
