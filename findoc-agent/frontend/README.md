@@ -1,4 +1,17 @@
-# React + TypeScript + Vite
+# FinDocAgent Frontend (React + TypeScript)
+
+Vite/React UI for login, document upload and status, document selection, and cited agent queries. For the full-stack setup, see the root [Quick Start](../../README.md#quick-start-run-everything-with-docker-compose).
+
+## Run Locally
+
+```bash
+npm install
+npm run dev      # dev server
+npm run build    # type-check and build
+npm run lint
+```
+
+## Vite Template Notes
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

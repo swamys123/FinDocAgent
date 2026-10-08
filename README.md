@@ -2,7 +2,11 @@
 
 FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial documents, retrieving relevant content, and producing grounded responses with source citations. It is built with Spring Boot, PostgreSQL with pgvector, Apache Kafka, and pluggable LLM providers.
 
-## Features
+[![Watch the FinDocAgent demo](screens/Document_Query.png)](https://youtu.be/Wnl3h9jDs8c)
+
+*Watch the demo: upload a financial document, ask a question, and inspect the cited answer and its trace.*
+
+## Key Features
 
 The feature set is deliberately shaped around the lifecycle of a financial document rather than a generic chatbot demo:
 
@@ -24,29 +28,29 @@ The diagram below shows the main request and data paths, including where the ten
 
 The editable diagram source and a short explanation of the design decisions are in [docs/story-012-architecture-and-portfolio-positioning.md](docs/story-012-architecture-and-portfolio-positioning.md).
 
-## Why I Built This
+## Why I Built This (Singapore FinTech Focus)
 
 I built FinDocAgent as a portfolio project targeted at Singapore's financial-services market. The domain is a useful test of production-minded document intelligence: financial teams need to find answers in regulated documents, retain evidence for review, and keep customer data isolated when the same platform serves multiple organizations.
 
 That target shaped the architecture. The project treats multi-tenancy, auditability, asynchronous ingestion, source citations, provider failure, and bounded agent behavior as first-class concerns rather than polishing them after a chatbot prototype works. It is intended to show how an AI feature can fit into the controls, operational expectations, and document-heavy workflows common to Singapore fintech, banking, insurance, and compliance products.
 
-## Product Screenshots
+## Product Tour
 
 The frontend provides a focused workflow for uploading financial documents, monitoring ingestion, selecting source documents, and asking grounded questions with citations.
 
-### Document Management
+### Upload and Track Financial Documents
 
 Upload documents, track processing status and chunk counts, and manage the tenant's document library from one view.
 
 ![FinDocAgent document management screen](screens/Document_Listing.png)
 
-### Grounded Document Querying
+### Ask Questions, Get Cited Answers
 
 Ask questions against selected documents and review the generated answer, detected intent, confidence, and source evidence together.
 
 ![FinDocAgent grounded query screen](screens/Document_Query.png)
 
-### Query 2: Traceable Retrieval and Explainability
+### Explainable Answers: See How Each Answer Was Built
 
 The second demonstrated query asks: **“What are the response and resolution times for a P1 critical incident versus a P4 low priority incident?”** It shows the same grounded workflow with a different business question and makes the audit trail visible to a reviewer.
 
@@ -66,11 +70,11 @@ The Recent Queries page shows the user's latest questions in one place. Selectin
 
 ![FinDocAgent Query 2 backend execution trace](screens/Document%20Query%202%20Explained.png)
 
-### Full Project Demo
+### Watch the Demo (Video)
 
-Watch the [FinDocAgent demo recording](screens/FinDocAgentDemo.webm) for an overview of the document-intelligence workflow, from managing source documents to reviewing grounded answers and their supporting trace.
+Watch the [FinDocAgent demo recording](https://youtu.be/Wnl3h9jDs8c) for an overview of the document-intelligence workflow, from managing source documents to reviewing grounded answers and their supporting trace.
 
-## Run the Full Stack with Compose
+## Quick Start: Run Everything with Docker Compose
 
 From the repository root, create the local environment file if it does not already exist, then replace its placeholder `JWT_SECRET`:
 
@@ -95,10 +99,14 @@ docker compose --env-file findoc-agent/.env down
 
 The database and uploaded-file volumes are removed only by `docker compose --env-file findoc-agent/.env down -v`; use that only when you intend to reset local data. This source-mounted development setup is not intended for production. Gemini-backed document ingestion requires a valid `GEMINI_API_KEY`; keep provider credentials in the ignored `.env` file, not in Compose YAML.
 
-## Developer Runbook
+## Developer Guide
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
 
-## Development Status
+## Project Status
 
 FinDocAgent is an implemented, locally validated end-to-end system rather than a prototype. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, chunking, Gemini embeddings, pgvector cosine retrieval, bounded agent workflows, session-aware generation, citations, explain traces, document comparison, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, and grounded session-aware querying.
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE).

@@ -1,4 +1,4 @@
-# FinDoc Agent developer guide
+# FinDoc Agent Developer Guide
 
 ## Current status
 
@@ -43,7 +43,7 @@ Current runtime caveat:
 - A JWT secret, for example: `local-dev-secret-at-least-32-characters-long`
 - A current Node.js LTS release with npm for the frontend
 
-## Local startup
+## Local Setup
 
 From the project root:
 
@@ -131,7 +131,7 @@ To inspect the raw specification from a terminal:
 curl -i http://localhost:8080/v3/api-docs
 ```
 
-## Seeded demo account
+## Demo Login (Seeded Account)
 
 The database changelog seeds a demo tenant and user:
 
@@ -272,7 +272,7 @@ Response is HTTP 204 No Content.
 
 Common invalid, missing, or unauthenticated requests return Spring `ProblemDetail` JSON with `type`, `title`, `status`, and `detail` fields. Examples include HTTP 400 for unsupported or empty files, invalid query/comparison input, or documents that are not ready; HTTP 401 for missing/invalid credentials; and HTTP 404 for tenant-scoped resources that do not exist. Document lookup and download remain tenant-scoped by the claims in the bearer token.
 
-## Agent query API
+## Agent Query API (Ask Questions)
 
 Use an omitted `sessionId` for the first question. Save the returned `sessionId` and provide it in a follow-up query.
 
@@ -358,7 +358,7 @@ Sample response:
 }
 ```
 
-### Query explanation
+### Query Explanation (Trace)
 
 ```bash
 curl -i http://localhost:8080/api/v1/agent/explain/fce381db-c5d8-4a8e-b9d9-cf08436c522f \
