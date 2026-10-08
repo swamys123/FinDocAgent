@@ -44,6 +44,7 @@ This file is the authoritative starting point for implementation work across ses
 | Story 013 | [Structured explain traces](story-013-structured-explain-traces.md) | Complete | Validate the new Liquibase migration against the live PostgreSQL stack with existing trace rows |
 
 | Story 014 | [Recent traces listing UI](story-014-recent-traces-listing.md) | Complete | Run the full unit suite and manually validate `/traces` against the live PostgreSQL/Kafka stack |
+| Story 015 | [README operational source of truth](story-015-readme-operational-source-of-truth.md) | Complete | Keep the runbook aligned with runtime and validation changes |
 
 ## Priority Order
 
