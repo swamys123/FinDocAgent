@@ -4,7 +4,7 @@
 Agentic RAG backend. Java 17, Spring Boot 3.2, PostgreSQL + pgvector, Kafka.
 
 ## Local development assumptions
-- For local containerized dependencies, use Podman rather than Docker.
+- For local containerized dependencies, use Docker Compose.
 - Apache Kafka is running locally and is always reachable on port 9092.
 - PostgreSQL is running locally and is always reachable on port 5432 with the correct password configured.
 - When running Gradle commands, always execute them from the findoc-agent/ directory.

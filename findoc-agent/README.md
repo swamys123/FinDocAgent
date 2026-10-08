@@ -4,12 +4,32 @@ Tenant-aware document intelligence application built with Spring Boot 3.2, Java 
 
 ## Requirements
 
+For host-based local runs:
 - Java 17
 - PostgreSQL with pgvector on `localhost:5432`
 - Apache Kafka on `localhost:9092`
 - Node.js and npm (current LTS) for the frontend
 - PostgreSQL test database `findoc-test-db` for `localIntegrationTest`
-- Podman with an accessible socket only for the containerized `integrationTest`
+- Docker Engine with an accessible socket for the containerized `integrationTest`
+
+## Full-Stack Compose Run
+
+The root [Compose quickstart](../README.md#run-the-full-stack-with-compose) starts PostgreSQL/pgvector, Kafka, the backend, and frontend in source-mounted development containers. From the repository root, create `findoc-agent/.env` from `.env.example`, set a local `JWT_SECRET`, then run:
+
+```bash
+docker compose --env-file findoc-agent/.env up -d
+docker compose --env-file findoc-agent/.env logs -f backend frontend
+```
+
+The backend receives provider settings from `findoc-agent/.env`; Compose overrides the database and Kafka URLs to use the internal service network. Keep `DB_USERNAME` and `DB_PASSWORD` consistent between the backend `.env` and the PostgreSQL container. The frontend is at `http://localhost:5173`, backend health at `http://localhost:8080/actuator/health`, and Swagger UI at `http://localhost:8080/swagger-ui/index.html`. Host PostgreSQL and Kafka ports default to 5433 and 9093 to avoid conflicts with existing local services.
+
+Stop without deleting persistent data:
+
+```bash
+docker compose --env-file findoc-agent/.env down
+```
+
+Use `down -v` only to intentionally remove the local database and upload volumes. This setup is for local development, not production; document ingestion requires a valid Gemini API key.
 
 ## Local Run
 
@@ -33,7 +53,7 @@ It listens on `http://localhost:8080`. The health check is:
 curl -i http://localhost:8080/actuator/health
 ```
 
-The public endpoints are `/actuator/health`, `/api/v1/auth/token`, `/v3/api-docs`, and `/swagger-ui/**`; all other API routes require a bearer token. The seeded local demo account is tenant `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`, and password `demo123`.
+The public routes are `/actuator/health`, `/api/v1/auth/token`, `/v3/api-docs/**`, and `/swagger-ui/**`. All other requests require bearer-token authentication. The seeded local demo account is tenant `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`, and password `demo123`.
 
 ## API Documentation
 
@@ -60,7 +80,7 @@ The development server listens on `http://localhost:5173`. Set `VITE_API_BASE_UR
 
 ## Configuration and Limits
 
-Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, the local integration test database name, Gemini and OpenRouter provider settings, ingestion topic and retry settings, provider circuit-breaker settings, CORS, and rolling log configuration. Gradle loads the populated, Git-ignored `.env` into test processes without modifying `application.yml`.
+Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, the local integration test database name, Gemini and OpenRouter provider settings, ingestion topic and retry settings, provider circuit-breaker settings, CORS, and rolling log configuration. Gradle loads the populated, Git-ignored `.env` into backend run and test processes without modifying `application.yml`.
 
 - Uploads are limited to 20 MB.
 - Ingestion chunks use 512 tokens with a 50-token overlap.
@@ -87,10 +107,10 @@ npm run build
 npm run lint
 ```
 
-`localIntegrationTest` uses the PostgreSQL database named by `TEST_DB_NAME` (default `findoc-test-db`) and the Kafka broker configured by `KAFKA_BOOTSTRAP_SERVERS`. It validates Liquibase, BYTEA source persistence, pgvector cosine retrieval, tenant isolation, soft-deleted chunks, Kafka ingestion, chunking, and document readiness with deterministic test embeddings. Create the test database before running it:
+`localIntegrationTest` runs tests tagged `local-integration` against the PostgreSQL database named by `TEST_DB_NAME` (default `findoc-test-db`) and the Kafka broker configured by `KAFKA_BOOTSTRAP_SERVERS`. It validates Liquibase, BYTEA source persistence, pgvector cosine retrieval, tenant isolation, soft-deleted chunks, Kafka ingestion, chunking, and document readiness with deterministic test embeddings. Create the test database before running it:
 
 ```sql
 CREATE DATABASE "findoc-test-db";
 ```
 
-`integrationTest` remains the Testcontainers-based alternative and requires an accessible Podman socket. Provider-backed Gemini and OpenRouter validation is a separate live check and requires provider credentials in `.env`. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).
+`integrationTest` remains the Testcontainers-based alternative and requires an accessible Docker socket. Provider-backed Gemini and OpenRouter validation is a separate live check and requires provider credentials in `.env`. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).

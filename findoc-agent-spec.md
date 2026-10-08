@@ -139,7 +139,7 @@ get_session_history(session_id: string) → Message[]
 | PDF Parsing | Apache PDFBox 3.0.3 | Local extraction |
 | Auth | Spring Security + JJWT | Self-contained for POC |
 | Build | Gradle 8.x | Gradle wrapper, Java 17 toolchain |
-| Container | Podman | Used by Testcontainers integration tests |
+| Container | Docker | Used by Testcontainers integration tests |
 | API Docs | Future work | Swagger UI is not currently supplied |
 | Testing | JUnit 5, Mockito, Testcontainers | Unit and integration test support |
 
@@ -717,63 +717,11 @@ public void consume(IngestionMessage message, Acknowledgment ack) {
 
 ---
 
-## 10. Future Docker Compose Bootstrap
+## 10. Local Docker Compose Bootstrap
 
-This compose definition is a future convenience asset and is not currently included in the repository. The supported local workflow uses PostgreSQL on port 5432 and Kafka on port 9092; Podman is used by Testcontainers integration tests.
+The repository includes a root `docker-compose.yml` for local development. It starts PostgreSQL with pgvector, single-node Kafka in KRaft mode, the Spring Boot backend, and the Vite frontend. The backend uses Compose service DNS for PostgreSQL and Kafka; host-published database and broker ports default to 5433 and 9093 to avoid conflicting with the existing local workflow.
 
-```yaml
-# docker-compose.yml
-version: '3.9'
-
-services:
-
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: findoc-postgres
-    environment:
-      POSTGRES_DB: findoc
-      POSTGRES_USER: findoc
-      POSTGRES_PASSWORD: findoc_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U findoc"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.6.0
-    container_name: findoc-zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-    ports:
-      - "2181:2181"
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    container_name: findoc-kafka
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-
-volumes:
-  pgdata:
-```
+From the repository root, copy `findoc-agent/.env.example` to `findoc-agent/.env`, replace the placeholder JWT secret, then start the stack with `docker compose --env-file findoc-agent/.env up`. The root README documents health checks, URLs, shutdown, and data reset. This source-mounted setup is for local development and is not a production deployment definition.
 
 ---
 
@@ -1081,7 +1029,7 @@ cp .env.example .env
 ./gradlew integrationTest --console=plain
 ```
 
-The integration task requires an accessible Podman socket. Swagger UI is future work; use the developer guide and curl script for the current API workflow.
+The integration task requires an accessible Docker socket. Swagger UI is future work; use the developer guide and curl script for the current API workflow.
 
 ---
 

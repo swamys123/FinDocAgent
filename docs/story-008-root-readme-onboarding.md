@@ -11,6 +11,7 @@ Complete
 - Added local setup, health-check, configuration, common-command, and local-demo-data guidance.
 - Linked to the existing API examples and developer guide instead of duplicating endpoint contracts.
 - Documented environment-variable precedence and the requirement to keep secrets out of tracked dotenv files.
+- Added a link to the project demo recording beside the product screenshots, with a summary of the document-to-answer workflow.
 
 ## Pending Work
 
@@ -21,6 +22,7 @@ Complete
 
 - Checked documented versions, commands, ports, and configuration-variable names against `findoc-agent/build.gradle`, `findoc-agent/gradle/wrapper/gradle-wrapper.properties`, `findoc-agent/.env.example`, and `findoc-agent/src/main/resources/application.yml`.
 - Verified that the README links point to tracked developer documentation and API examples.
+- Confirmed that `screens/FinDocAgentDemo.webm` exists and that the root README links to it with a repository-relative path.
 
 ## Next Implementation Item
 

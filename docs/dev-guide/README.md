@@ -31,7 +31,7 @@ Implemented so far:
 
 Current runtime caveat:
 
-- The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task still requires an accessible Podman socket.
+- The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task requires an accessible Docker socket.
 
 ## Prerequisites
 
@@ -463,6 +463,6 @@ For frontend verification, also confirm that login succeeds, documents can be se
 - This project is intentionally tenant-scoped. Tokens carry both `tenant_id` and `user_id` claims.
 - The agent query path records `classify_intent`, `vector_search`, and `generate_report`; the configured five-iteration cap remains enforced even though dynamic tool selection is future work.
 - OpenRouter generation and comparison fall back to deterministic local responses when the API key is blank, a provider call fails, or its circuit breaker is open. Gemini embedding does not have an equivalent fallback, so ingestion requires a working Gemini key and endpoint.
-- Integration tests that use Testcontainers require a working Podman remote socket in this environment; when that socket is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
+- Integration tests that use Testcontainers require a working Docker socket; when the daemon is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
 - The basic frontend has build and lint validation but no automated frontend tests yet; this remains a future enhancement.
