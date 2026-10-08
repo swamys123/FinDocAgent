@@ -70,6 +70,31 @@ The Recent Queries page shows the user's latest questions in one place. Selectin
 
 Watch the [FinDocAgent demo recording](screens/FinDocAgentDemo.webm) for an overview of the document-intelligence workflow, from managing source documents to reviewing grounded answers and their supporting trace.
 
+## Run the Full Stack with Compose
+
+From the repository root, create the local environment file if it does not already exist, then replace its placeholder `JWT_SECRET`:
+
+```bash
+cp -n findoc-agent/.env.example findoc-agent/.env
+```
+
+Start PostgreSQL with pgvector, Kafka, the Spring Boot backend, and the Vite frontend:
+
+```bash
+docker compose --env-file findoc-agent/.env up -d
+docker compose --env-file findoc-agent/.env logs -f backend frontend
+```
+
+Open the frontend at http://localhost:5173. The backend health endpoint is http://localhost:8080/actuator/health and Swagger UI is http://localhost:8080/swagger-ui/index.html. PostgreSQL and Kafka are available to host tools on ports 5433 and 9093 by default; the backend uses Compose's internal service addresses. Set `FINDOC_POSTGRES_PORT` or `FINDOC_KAFKA_PORT` in the shell to change the published ports.
+
+Stop the services while preserving database state:
+
+```bash
+docker compose --env-file findoc-agent/.env down
+```
+
+The database and uploaded-file volumes are removed only by `docker compose --env-file findoc-agent/.env down -v`; use that only when you intend to reset local data. This source-mounted development setup is not intended for production. Gemini-backed document ingestion requires a valid `GEMINI_API_KEY`; keep provider credentials in the ignored `.env` file, not in Compose YAML.
+
 ## Developer Runbook
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
