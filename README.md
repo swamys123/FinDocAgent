@@ -66,6 +66,10 @@ The Recent Queries page shows the user's latest questions in one place. Selectin
 
 ![FinDocAgent Query 2 backend execution trace](screens/Document%20Query%202%20Explained.png)
 
+### Full Project Demo
+
+Watch the [FinDocAgent demo recording](screens/FinDocAgentDemo.webm) for an overview of the document-intelligence workflow, from managing source documents to reviewing grounded answers and their supporting trace.
+
 ## Requirements
 
 | Software | Required version or setup |
