@@ -1,8 +1,8 @@
-# FinDoc Agent
+# FinDoc Agent: Backend and Developer Setup
 
 Tenant-aware document intelligence application built with Spring Boot 3.2, Java 17, PostgreSQL with pgvector, Apache Kafka, and a Vite/React frontend. It supports document upload and download, asynchronous PDF/text ingestion, cosine-similarity retrieval, grounded agent responses with citations, session-aware queries, document comparison, query traces, and tenant-scoped persistence.
 
-## Requirements
+## Prerequisites
 
 For host-based local runs:
 - Java 17
@@ -12,26 +12,11 @@ For host-based local runs:
 - PostgreSQL test database `findoc-test-db` for `localIntegrationTest`
 - Docker Engine with an accessible socket for the containerized `integrationTest`
 
-## Full-Stack Compose Run
+## Run with Docker Compose
 
-The root [Compose quickstart](../README.md#run-the-full-stack-with-compose) starts PostgreSQL/pgvector, Kafka, the backend, and frontend in source-mounted development containers. From the repository root, create `findoc-agent/.env` from `.env.example`, set a local `JWT_SECRET`, then run:
+See the root [Compose quick start](../README.md#quick-start-run-everything-with-docker-compose) for the full instructions, ports, and shutdown commands. It starts PostgreSQL/pgvector, Kafka, the backend, and the frontend using `findoc-agent/.env`.
 
-```bash
-docker compose --env-file findoc-agent/.env up -d
-docker compose --env-file findoc-agent/.env logs -f backend frontend
-```
-
-The backend receives provider settings from `findoc-agent/.env`; Compose overrides the database and Kafka URLs to use the internal service network. Keep `DB_USERNAME` and `DB_PASSWORD` consistent between the backend `.env` and the PostgreSQL container. The frontend is at `http://localhost:5173`, backend health at `http://localhost:8080/actuator/health`, and Swagger UI at `http://localhost:8080/swagger-ui/index.html`. Host PostgreSQL and Kafka ports default to 5433 and 9093 to avoid conflicts with existing local services.
-
-Stop without deleting persistent data:
-
-```bash
-docker compose --env-file findoc-agent/.env down
-```
-
-Use `down -v` only to intentionally remove the local database and upload volumes. This setup is for local development, not production; document ingestion requires a valid Gemini API key.
-
-## Local Run
+## Run Locally (Backend)
 
 From this directory:
 
@@ -55,7 +40,7 @@ curl -i http://localhost:8080/actuator/health
 
 The public routes are `/actuator/health`, `/api/v1/auth/token`, `/v3/api-docs/**`, and `/swagger-ui/**`. All other requests require bearer-token authentication. The seeded local demo account is tenant `00000000-0000-0000-0000-000000000001`, username `demo@findoc.local`, and password `demo123`.
 
-## API Documentation
+## API Docs (Swagger UI)
 
 When the backend is running, the generated OpenAPI specification is available at:
 
@@ -89,7 +74,7 @@ Use `.env.example` as the non-secret configuration reference. It includes databa
 - Ingestion retries use exponential backoff and route exhausted messages to `findoc.ingestion.dlq`.
 - OpenRouter generation and comparison have deterministic fallback behavior; Gemini embedding requires a working provider.
 
-## Validation
+## Run the Tests
 
 Run from this directory:
 
