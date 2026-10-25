@@ -8,6 +8,7 @@ Verified in this workspace:
 
 - `cd findoc-agent && ./gradlew test --console=plain` passed successfully.
 - `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka.
+- The Audit 1 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadPublishAtomicityIntegrationTest --console=plain` pass using Testcontainers.
 - `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
 
 Implemented so far:
@@ -29,9 +30,10 @@ Implemented so far:
 - Backend CORS configuration for the local frontend origin, plus successful frontend build and lint validation
 - Generated OpenAPI documentation and Swagger UI with bearer JWT security metadata
 
-Current runtime caveat:
+Current runtime caveats:
 
 - The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task requires an accessible Docker socket.
+- `correctnessTest` runs tagged Testcontainers tests for outbox recovery, ingestion idempotency, poison messages, dead-letter handling, and upload idempotency. Audit 1 and Audit 2 ingestion idempotency cases pass; remaining Audit 3–4 findings are still being implemented, so the full suite may report expected failures. If Docker 29 rejects Testcontainers 1.19.8's API version, set `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
 
 ## Prerequisites
 
@@ -56,6 +58,22 @@ cp .env.example .env
 Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, `localIntegrationTest`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence.
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
+
+### Distributed-systems correctness tests
+
+Run the correctness suite from `findoc-agent/`:
+
+```bash
+./gradlew correctnessTest --console=plain
+```
+
+This task selects JUnit tests tagged `correctness` and starts PostgreSQL/pgvector and Kafka with Testcontainers; it needs an accessible Docker socket and does not require live Gemini or OpenRouter credentials. The suite checks guarantees across asynchronous upload and ingestion—not just controller contracts—including transactional outbox delivery/recovery, redelivery and concurrent ingestion, poison records, dead-letter behavior, and duplicate-upload/idempotency behavior. The Audit 1 outbox cases pass; tests for not-yet-fixed audit findings may fail until their corresponding implementation is complete. These integration tests are separate from the standard `test` task.
+
+If Docker reports that the API version used by the installed Testcontainers dependency is too old, use:
+
+```bash
+JAVA_TOOL_OPTIONS=-Dapi.version=1.44 ./gradlew correctnessTest --console=plain
+```
 
 ### Configuration reference
 

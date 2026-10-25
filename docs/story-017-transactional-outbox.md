@@ -10,8 +10,8 @@
 
 ## Pending work
 
-- Kafka publication remains at-least-once if the process stops after Kafka acknowledges the message but before the sent marker commits. Consumer idempotency is part of the next audit fix.
-- Continue with Audit 2 consumer idempotency and its existing failing tests.
+- Kafka publication remains at-least-once if the process stops after Kafka acknowledges the message but before the sent marker commits. Audit 2 now makes duplicate ingestion deliveries idempotent.
+- Continue with Audit 3 dead-letter safety, observability, and replayability.
 
 ## Validation performed
 
@@ -20,4 +20,4 @@
 
 ## Next implementation item
 
-Implement Audit 2 ingestion idempotency, starting with consumer state transitions, duplicate delivery, and chunk uniqueness.
+Implement Audit 3 dead-letter safety, observability, and replayability.

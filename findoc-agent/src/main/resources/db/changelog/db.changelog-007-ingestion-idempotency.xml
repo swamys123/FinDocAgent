@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="018-add-live-document-chunk-unique-index" author="copilot">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM (
+                    SELECT document_id, chunk_index
+                    FROM document_chunks
+                    WHERE deleted_at IS NULL
+                    GROUP BY document_id, chunk_index
+                    HAVING COUNT(*) &gt; 1
+                ) duplicates
+            </sqlCheck>
+        </preConditions>
+        <sql>
+            CREATE UNIQUE INDEX uq_document_chunks_live_document_index
+                ON document_chunks (document_id, chunk_index)
+                WHERE deleted_at IS NULL;
+        </sql>
+    </changeSet>
+
+    <changeSet id="019-create-ingestion-embedding-staging" author="copilot">
+        <createTable tableName="ingestion_chunk_embeddings">
+            <column name="document_id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_ingestion_chunk_embeddings"
+                             foreignKeyName="fk_ingestion_chunk_embeddings_document" references="documents(id)"/>
+            </column>
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_ingestion_chunk_embeddings"
+                             foreignKeyName="fk_ingestion_chunk_embeddings_tenant" references="tenants(id)"/>
+            </column>
+            <column name="chunk_index" type="INTEGER">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_ingestion_chunk_embeddings"/>
+            </column>
+            <column name="content" type="TEXT">
+                <constraints nullable="false"/>
+            </column>
+            <column name="token_count" type="INTEGER">
+                <constraints nullable="false"/>
+            </column>
+            <column name="embedding" type="vector(768)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="updated_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <createIndex tableName="ingestion_chunk_embeddings" indexName="idx_ingestion_embeddings_tenant_document">
+            <column name="tenant_id"/>
+            <column name="document_id"/>
+        </createIndex>
+    </changeSet>
+
+    <changeSet id="020-index-stale-ingestion-claims" author="copilot">
+        <sql>
+            CREATE INDEX idx_documents_stale_processing
+                ON documents (updated_at, id)
+                WHERE status = 'PROCESSING' AND deleted_at IS NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

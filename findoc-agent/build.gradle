@@ -88,7 +88,7 @@ tasks.register('integrationTest', Test) {
 }
 
 tasks.register('correctnessTest', Test) {
-    description = 'Runs the distributed-systems correctness tests (Testcontainers). Expected to fail until the audit findings are fixed.'
+    description = 'Runs the distributed-systems correctness tests (Testcontainers); unfinished audit findings may fail.'
     group = 'verification'
     useJUnitPlatform {
         includeTags 'correctness'

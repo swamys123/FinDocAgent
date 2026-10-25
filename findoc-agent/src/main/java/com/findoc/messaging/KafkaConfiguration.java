@@ -9,6 +9,7 @@ import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.listener.ContainerProperties;
 import org.springframework.kafka.support.ExponentialBackOffWithMaxRetries;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -42,6 +43,7 @@ public class KafkaConfiguration {
         var factory = new ConcurrentKafkaListenerContainerFactory<String, IngestionJob>();
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(ingestionErrorHandler);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
         return factory;
     }
 }

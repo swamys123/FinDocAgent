@@ -10,7 +10,7 @@ For host-based local runs:
 - Apache Kafka on `localhost:9092`
 - Node.js and npm (current LTS) for the frontend
 - PostgreSQL test database `findoc-test-db` for `localIntegrationTest`
-- Docker Engine with an accessible socket for the containerized `integrationTest`
+- Docker Engine with an accessible socket for the containerized `integrationTest` and `correctnessTest`
 
 ## Run with Docker Compose
 
@@ -83,6 +83,7 @@ Run from this directory:
 ./gradlew test --console=plain
 ./gradlew localIntegrationTest --console=plain
 ./gradlew integrationTest --console=plain
+./gradlew correctnessTest --console=plain
 ```
 
 Run frontend checks from `frontend/`:
@@ -99,3 +100,9 @@ CREATE DATABASE "findoc-test-db";
 ```
 
 `integrationTest` remains the Testcontainers-based alternative and requires an accessible Docker socket. Provider-backed Gemini and OpenRouter validation is a separate live check and requires provider credentials in `.env`. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).
+
+`correctnessTest` runs the distributed-systems tests tagged `correctness`, using Testcontainers for PostgreSQL/pgvector and Kafka. It exercises upload/outbox atomicity and relay recovery, ingestion redelivery and concurrency, poison-message handling, dead-letter publishing and replay contracts, and upload idempotency/content deduplication. Audit 1 and Audit 2 ingestion-idempotency tests pass; other Audit 3–4 findings may still fail until implemented. The task is separate from `test`, which excludes integration-test classes. If Testcontainers reports that Docker API 1.32 is too old, run it with `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`:
+
+```bash
+JAVA_TOOL_OPTIONS=-Dapi.version=1.44 ./gradlew correctnessTest --console=plain
+```

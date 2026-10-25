@@ -19,8 +19,8 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Audit 2 (h). Isolated on its own topic and Spring context: today a poison record wedges its consumer forever,
- * which would otherwise corrupt every other Kafka-based test sharing the topic.
+ * Audit 2 (h). Isolated on its own topic and Spring context because a poison record can block its consumer group
+ * while the deserialization failure is being recovered.
  */
 class PoisonMessageIntegrationTest extends CorrectnessTestSupport {
     static final String POISON_TOPIC = "correctness-poison-" + UUID.randomUUID();
@@ -32,7 +32,7 @@ class PoisonMessageIntegrationTest extends CorrectnessTestSupport {
         registry.add("findoc.ingestion.group", () -> POISON_TOPIC + "-group");
     }
 
-    /** No ErrorHandlingDeserializer is configured: an undeserialisable record must not block valid work behind it. */
+    /** An undeserialisable record must be routed past without blocking valid work behind it. */
     @Test
     void undeserialisableMessageDoesNotBlockSubsequentIngestion() throws Exception {
         Properties props = new Properties();
@@ -51,5 +51,9 @@ class PoisonMessageIntegrationTest extends CorrectnessTestSupport {
             .alias("a poison record must be skipped/dead-lettered, not retried forever in front of valid work")
             .atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(500))
             .untilAsserted(() -> assertThat(status(stored.id())).isEqualTo("READY"));
+
+        assertThat(DeadLetterTopicReader.read(KAFKA.getBootstrapServers(), POISON_TOPIC + ".dlq"))
+            .extracting(record -> record.key())
+            .contains("poison");
     }
 }

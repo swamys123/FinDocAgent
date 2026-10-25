@@ -1,7 +1,8 @@
 # Distributed-systems correctness audit
 
-Scope (Audits 1–4): read-only audit of the upload → Kafka → ingestion pipeline (Spring Boot 3.2.12, spring-kafka 3.1.10,
-kafka-clients 3.6.2). No production code was changed. Every UNSAFE finding below is backed by a failing test in
+Scope (Audits 1–4): initial read-only audit of the upload → Kafka → ingestion pipeline (Spring Boot 3.2.12,
+spring-kafka 3.1.10, kafka-clients 3.6.2), followed by fixes tracked in the implementation updates below. Every
+originally UNSAFE finding is backed by a failing test in
 `findoc-agent/src/test/java/com/findoc/correctness/` (see [Tests](#tests-and-the-finding-each-proves)).
 
 Paths are relative to `findoc-agent/src/main/` unless stated. Verdicts: SAFE / UNSAFE / UNKNOWN.
@@ -38,31 +39,32 @@ is only safe once the consumer is idempotent (Audit 2), because `markProcessing(
 
 ## Audit 2 – Is the ingestion consumer idempotent?
 
-**No.** Failure atomicity is good (one DB transaction), but redelivery, concurrency, deletion, provider failure cost,
-schema constraints and poison messages are all unsafe.
+**Yes, for the audited delivery, concurrency, failure-cost, deletion and poison-message cases.** Successful chunk
+embeddings are durably staged outside the live-chunk transaction, state transitions are conditional, and stale
+processing claims are recovered through the transactional outbox.
 
 | Item | Finding | Evidence | Verdict |
 |---|---|---|---|
-| (a) Offset commit | `ack-mode: record` is set in `application.yml:31-32`, but the listener factory is hand-built (`new ConcurrentKafkaListenerContainerFactory`, no Boot configurer), so that property may not reach it. Either way the offset is committed after the listener returns, i.e. at-least-once. Effective ack mode **not verified**. | `application.yml:31-33`; `KafkaConfiguration.java:36-45` | UNKNOWN (effective mode); at-least-once is expected |
-| (b) Transaction scope | Chunk inserts and the status update share one `@Transactional` `ingest()`. **The Gemini HTTP call is made inside that open transaction**, once per chunk, each with a 10 s read timeout. | `service/document/IngestionService.java:39-69` (embed at :64); `service/embedding/GeminiEmbeddingService.java:37-38` | UNSAFE |
-| (c) Unique index on chunks | **None.** Only non-unique indexes exist on `document_chunks` (`tenant_id, document_id`; `tenant_id, document_id, deleted_at`) plus an ivfflat vector index. If a unique index on `(document_id, chunk_index)` is added later it must be partial (`WHERE deleted_at IS NULL`; the column is `deleted_at`, not `deleted`), otherwise re-ingestion after soft delete (soft-delete at `IngestionService.java:59`, then insert at :60-65) will violate it. | `resources/db/changelog/db.changelog-001-init.xml:120-123`, `-004-chunk-soft-delete.xml:12-16`, `-002-vector.xml:23-27` | UNSAFE |
-| (d) Redelivery path | `READY`/`PROCESSING` doc → `markProcessing()` throws `IllegalStateException` (treated as a failure, not a no-op). `PENDING`/`FAILED` doc → soft-delete existing live chunks, then re-insert all (delete-then-insert, not upsert). | `IngestionService.java:46,59-65`; `entity/Document.java:129-134` | UNSAFE |
-| (e) State machine | `PENDING→PROCESSING` and `FAILED→PROCESSING` (`markProcessing`), `PROCESSING→READY` (`markReady`, `requireStatus`), `PROCESSING/PENDING→FAILED` (`markFailed`, `recordFailure`), `FAILED→PENDING` (`resetForRetry`), non-exhausted `recordFailure` → `PENDING`. Checks are in-memory read-then-write; no `@Version`, no `UPDATE … WHERE status = ?` (grep of entities for `Version`/`DynamicUpdate`: none). | `entity/Document.java:129-168, 206-210` | UNSAFE |
-| (f) Concurrency | `setConcurrency` is not called, so one consumer thread per instance. Partition count is not declared in code (no `NewTopic`/`TopicBuilder`), so it is whatever the broker auto-creates (**unknown in production**). Two attempts on one document can still overlap after a rebalance (long in-tx Gemini calls vs `max.poll.interval.ms`) or across instances; nothing serialises them. | `KafkaConfiguration.java:36-45`; grep for `concurrency`/`NewTopic`: none | UNSAFE (overlap proven at service level) |
-| (g) Retry tracking | `DefaultErrorHandler` + `ExponentialBackOffWithMaxRetries` (1 s ×2, max 10 s, 2 retries) and a `DeadLetterPublishingRecoverer`. Each retry re-runs the **whole** pipeline including every paid Gemini call. `retry_count` is only incremented at exhaustion (from the DLQ destination resolver), not per retry. | `KafkaConfiguration.java:20-34`; `application.yml:63-71` | UNSAFE |
-| (h) Poison messages | No `ErrorHandlingDeserializer`; the value deserializer is a bare `JsonDeserializer`. Observed: `This error handler cannot process 'SerializationException's directly; please consider configuring an 'ErrorHandlingDeserializer'` repeated forever; the topic is wedged. | `application.yml:25-30`; test log | UNSAFE |
-| (i) Delete during ingestion | `ingest()` holds a stale `Document` (`deletedAt = null`); the final `documentRepository.save(document)` writes it back. Observed: `deleted_at` is `NULL` after a delete that committed mid-ingestion (document resurrected). Chunks inserted after the delete are not removed (second assertion not reached in the test run). | `IngestionService.java:41,59-68`; `DocumentService.java:96-102` | UNSAFE |
+| (a) Offset commit | The hand-built listener factory explicitly sets `ContainerProperties.AckMode.RECORD`, so listener success is committed per record; failures remain under the configured error handler. | `messaging/KafkaConfiguration.java`; `application.yml` | SAFE (at-least-once) |
+| (b) Transaction scope | The provider call runs in the non-transactional ingestion orchestrator. Each successful embedding is committed to a staging table in a short transaction, and staged chunks are copied into live rows with `READY` completion in one final transaction. | `service/document/IngestionService.java`; `service/document/IngestionProgressService.java`; `service/document/IngestionCompletionService.java` | SAFE |
+| (c) Unique index on chunks | A Liquibase partial unique index now enforces one live row per `(document_id, chunk_index)` with `WHERE deleted_at IS NULL`; a migration precondition halts if pre-existing live duplicates would prevent index creation. | `resources/db/changelog/db.changelog-007-ingestion-idempotency.xml`; `IngestionIdempotencyIntegrationTest` | SAFE |
+| (d) Redelivery path | Chunk writes now use `INSERT … ON CONFLICT` against the partial index, and only stale trailing chunk indexes are soft-deleted after successful writes. An already-`READY` document is acknowledged as a no-op. | `repository/DocumentChunkRepository.java`; `service/document/IngestionService.java`; `IngestionIdempotencyIntegrationTest` | SAFE |
+| (e) State machine | Tenant-scoped conditional SQL updates implement eligible claims, completion, and failure transitions. A fresh `PROCESSING` claim remains an error; only `READY` is a no-op. A lease-based recovery transaction resets stale `PROCESSING` claims and writes a new outbox event atomically. | `repository/DocumentRepository.java`; `repository/StaleIngestionRepository.java`; `service/document/StaleIngestionRecoveryService.java` | SAFE |
+| (f) Concurrency | Atomic claims prevent overlapping work for a document. Successful staging updates the processing heartbeat; only claims older than the configured lease are recovered and re-enqueued. | `repository/DocumentRepository.java`; `repository/IngestionProgressRepository.java`; `messaging/StaleIngestionRecovery.java` | SAFE (document scope) |
+| (g) Retry tracking | Successful embeddings are durably staged and reused on redelivery. A failed provider call is retried normally; each failed delivery increments `retry_count` once, and final DLQ recovery does not double-count. Stale crashed attempts are counted when re-enqueued. | `repository/IngestionProgressRepository.java`; `repository/DocumentRepository.java`; `KafkaConfiguration.java`; `IngestionIdempotencyIntegrationTest`; `DeadLetterContractIntegrationTest` | SAFE |
+| (h) Poison messages | `ErrorHandlingDeserializer` wraps the trusted `JsonDeserializer`; the error handler recovers malformed records to the DLQ, and a test proves a valid message behind a poison record reaches `READY`. | `application.yml`; `CorrectnessTestSupport`; `PoisonMessageIntegrationTest` | SAFE |
+| (i) Delete during ingestion | Chunk upserts require the same tenant-scoped document to remain non-deleted; completion requires `status = 'PROCESSING'` and `deleted_at IS NULL`. If deletion wins, ingestion aborts and its chunk transaction rolls back rather than saving a stale `Document`. | `repository/DocumentChunkRepository.java`; `repository/DocumentRepository.java`; `IngestionIdempotencyIntegrationTest` | SAFE |
 
 ### Failure timelines
 
 | Scenario | Outcome | Evidence | Severity | Verdict |
 |---|---|---|---|---|
-| 1. Crash after 10 of 20 chunks, before status update | Whole `ingest()` tx rolls back: no partial chunks, doc still `PENDING`, offset not committed → redelivered. (By code reading; a mid-flight failure rollback is asserted in the test for timeline 4.) Cost: the in-tx Gemini calls are repeated. | `IngestionService.java:39-69` | Medium | SAFE (data) |
-| 2. Same message delivered twice, sequentially | 2nd delivery throws at `markProcessing()` (`Document must be PENDING or FAILED but was READY`), is retried 2×, then the DLQ destination resolver calls `recordFailure`, which itself throws `Document cannot fail from status READY`. The recoverer never completes, nothing reaches the DLQ, and the record is redelivered forever, **blocking the partition**. Observed 20× and 60× in the test log. | `IngestionService.java:46`; `Document.java:129-134,157-160`; `KafkaConfiguration.java:22-26` | High | UNSAFE |
-| 3. Same message delivered twice, concurrently | Both attempts read the doc as `PENDING` (no lock/version) and both insert: **2 live chunks instead of 1** (observed). | `IngestionService.java:41-68`; no unique index | High | UNSAFE |
-| 4. Provider fails on chunk 15 of 20 | tx rolls back (no live chunks), doc ends `FAILED` after retries, but every attempt re-embeds from chunk 1: **3 Gemini calls per chunk** (observed `[3,3,…]` for 15 chunks = 45 paid calls, not 15). | `IngestionService.java:55-66`; `KafkaConfiguration.java:27-31` | Medium | UNSAFE (cost) / SAFE (data) |
+| 1. Crash after 10 of 20 chunks, before final commit | Live-chunk finalization is atomic. The ten successful embeddings remain staged, the document remains `PROCESSING`, and lease recovery eventually resets it to `PENDING` and enqueues a replay; that replay reuses the staged embeddings. | `IngestionProgressRepository.java`; `StaleIngestionRecovery.java`; `StaleIngestionRecoveryService.java` | Medium | SAFE (recovery after configured lease) |
+| 2. Same message delivered twice, sequentially | A `READY` document is acknowledged as a no-op; the record does not reach retries or DLQ. | `IngestionIdempotencyIntegrationTest` | n/a | SAFE |
+| 3. Same message delivered twice, concurrently | Only one conditional claim succeeds. The other fresh `PROCESSING` claim is an error and cannot mutate the active attempt; live uniqueness is a database backstop. | `DocumentRepository.java`; `IngestionIdempotencyIntegrationTest` | n/a | SAFE |
+| 4. Provider fails on chunk 15 of 20 | The first fourteen successful embeddings stay staged and are reused. The failing chunk is called once per delivery attempt; after exhaustion, no live chunks were committed and the document is `FAILED`. | `IngestionIdempotencyIntegrationTest` | n/a | SAFE (data and completed-call cost) |
 
-### Exact duplicate-data / bad-state outcomes (observed unless stated)
+### Exact duplicate-data / bad-state outcomes observed before fixes (unless stated)
 
 - Concurrent delivery of one 1-chunk document → **2 live chunks instead of 1** (for a 20-chunk document: 40 instead of 20).
 - `document_chunks` accepts two live rows with the same `(document_id, chunk_index)` – the database offers no last line of defence.
@@ -82,7 +84,7 @@ Files: `messaging/KafkaConfiguration.java`, `messaging/KafkaIngestionConsumer.ja
 | a1 | DLQ payload | Original `IngestionJob(documentId, tenantId, userId)` JSON, same key; Spring default headers (original topic/partition/offset, exception fqcn/message/stacktrace) | SAFE (verified on the wire) |
 | a2 | Retry count | No retry-count header on the DLQ record; DLQ routing relies only on `ExponentialBackOffWithMaxRetries(2)` | UNSAFE |
 | a3 | Tenant on replay | Payload has `tenantId`+`userId`; `ingest()` loads by `(id, tenantId)` and checks owner. Message itself is unsigned | SAFE (Low risk) |
-| b1 | Status on exhaustion | `recordFailure` sets `FAILED` + `errorMessage`, but `retry_count` ends at 1, not the 3 delivery attempts | UNSAFE (Medium) |
+| b1 | Status on exhaustion | Each failed ingestion delivery increments `retry_count`; the final recovery moves `PENDING` to `FAILED` without double-counting. The regression test confirms the configured three delivery attempts. | SAFE |
 | b2 | Atomicity | FAILED is committed in the destination resolver *before* the DLQ send; no outbox/transaction links them | UNSAFE |
 | b3 | DLQ publish fails | Redelivery calls `recordFailure` on an already-`FAILED` document → `IllegalStateException` every time; the job can never be dead-lettered and blocks its partition (38 such exceptions logged in the test run) | UNSAFE |
 | b5 | Poison pill | Covered by Audit 2 (h) | UNSAFE |
@@ -200,4 +202,11 @@ When the audit tests were originally added, the only non-test file changed was `
 
 Audit 1 is now fixed with a Liquibase-managed transactional outbox and scheduled Kafka relay. The three
 `UploadPublishAtomicityIntegrationTest` cases pass; the orphan-recovery test now models the actual crash window by
-committing a pending outbox event alongside the document. Audits 2–4 and their tests remain pending.
+committing a pending outbox event alongside the document.
+
+Audit 2 is implemented: the partial live-chunk index and upsert, tenant-scoped atomic state transitions, external
+embedding calls outside transactions with durable staging, reuse of completed embeddings, explicit record-level
+acknowledgment, retry attempt tracking, stale-claim recovery through the transactional outbox, and error-handling
+deserialization for poison records. Liquibase halts on duplicate live chunks before index creation. Testcontainers
+integration tests cover these contracts, including crash-recovery scheduling and poison-message progress. Audits 3
+and 4 remain pending; Audit 3 finding b1 (accurate retry count) is also resolved by the shared failure transition.

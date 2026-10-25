@@ -74,7 +74,7 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         assertThat(headerNames).as("DLQ headers: %s", headerNames).anyMatch(name -> name.contains("retry"));
     }
 
-    /** Audit 3 (b1): retry_count is incremented once by recordFailure, not once per delivery attempt. */
+    /** Audit 3 (b1): retry_count records each delivery attempt, not only final recovery. */
     @Test
     void failedDocumentRecordsTheRealNumberOfDeliveryAttempts() {
         StoredDocument stored = exhaustRetries();
