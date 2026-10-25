@@ -69,6 +69,9 @@ findoc:
       multiplier: ${FINDOC_INGESTION_RETRY_MULTIPLIER:2.0}
       max-interval-ms: ${FINDOC_INGESTION_RETRY_MAX_INTERVAL_MS:10000}
       max-retries: ${FINDOC_INGESTION_RETRY_MAX_RETRIES:2}
+    outbox:
+      poll-interval-ms: ${FINDOC_INGESTION_OUTBOX_POLL_INTERVAL_MS:1000}
+      batch-size: ${FINDOC_INGESTION_OUTBOX_BATCH_SIZE:20}
 
 logging:
   level:

@@ -5,18 +5,16 @@ import com.findoc.entity.Document;
 import com.findoc.entity.DocumentSource;
 import com.findoc.entity.DocumentChunk;
 import com.findoc.entity.User;
+import com.findoc.messaging.IngestionOutbox;
 import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.repository.UserRepository;
 import com.findoc.messaging.IngestionJob;
-import com.findoc.messaging.IngestionProducer;
 import com.findoc.util.TenantContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -33,18 +31,18 @@ public class DocumentService {
     private final DocumentChunkRepository documentChunkRepository;
     private final DocumentSourceRepository documentSourceRepository;
     private final UserRepository userRepository;
-    private final IngestionProducer ingestionProducer;
+    private final IngestionOutbox ingestionOutbox;
 
     public DocumentService(DocumentRepository documentRepository,
                           DocumentChunkRepository documentChunkRepository,
                           DocumentSourceRepository documentSourceRepository,
                           UserRepository userRepository,
-                          IngestionProducer ingestionProducer) {
+                          IngestionOutbox ingestionOutbox) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.documentSourceRepository = documentSourceRepository;
         this.userRepository = userRepository;
-        this.ingestionProducer = ingestionProducer;
+        this.ingestionOutbox = ingestionOutbox;
     }
 
     @Transactional
@@ -64,7 +62,7 @@ public class DocumentService {
         Document saved = documentRepository.save(document);
         documentSourceRepository.save(new DocumentSource(saved, user.getTenant(), file.getBytes()));
         IngestionJob job = new IngestionJob(saved.getId(), TenantContext.tenantId(), TenantContext.userId());
-        publishAfterCommit(job);
+        ingestionOutbox.enqueue(job);
         return response(saved, saved.getStatus().name(), 0);
     }
 
@@ -118,19 +116,6 @@ public class DocumentService {
 
     private DocumentResponse response(Document document, String status, int chunkCount) {
         return new DocumentResponse(document.getId(), document.getFilename(), document.getFileType(), status, chunkCount, document.getCreatedAt());
-    }
-
-    private void publishAfterCommit(IngestionJob job) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            ingestionProducer.publish(job);
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                ingestionProducer.publish(job);
-            }
-        });
     }
 
 }

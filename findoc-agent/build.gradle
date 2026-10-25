@@ -87,6 +87,20 @@ tasks.register('integrationTest', Test) {
     include '**/integration/**'
 }
 
+tasks.register('correctnessTest', Test) {
+    description = 'Runs the distributed-systems correctness tests (Testcontainers). Expected to fail until the audit findings are fixed.'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'correctness'
+    }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
+}
+
 tasks.register('localIntegrationTest', Test) {
     description = 'Runs integration tests against the local PostgreSQL test database and Kafka broker.'
     group = 'verification'
