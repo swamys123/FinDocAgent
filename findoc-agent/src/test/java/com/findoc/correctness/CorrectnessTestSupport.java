@@ -41,8 +41,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Shared Testcontainers setup (pgvector Postgres + Kafka) for the distributed-systems correctness tests.
- * Every test in this package asserts the DESIRED guarantee and is expected to FAIL against the current code;
- * see docs/audit/correctness-audit.md for the finding each one proves.
+ * Tests in this package assert the desired guarantees; findings still pending are documented in
+ * docs/audit/correctness-audit.md.
  */
 @Tag("correctness")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)

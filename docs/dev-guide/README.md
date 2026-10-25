@@ -9,6 +9,8 @@ Verified in this workspace:
 - `cd findoc-agent && ./gradlew test --console=plain` passed successfully.
 - `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka.
 - The Audit 1 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadPublishAtomicityIntegrationTest --console=plain` pass using Testcontainers.
+- The Audit 2 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
+- The Audit 4 idempotency-key cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
 - `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
 
 Implemented so far:
@@ -33,7 +35,7 @@ Implemented so far:
 Current runtime caveats:
 
 - The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task requires an accessible Docker socket.
-- `correctnessTest` runs tagged Testcontainers tests for outbox recovery, ingestion idempotency, poison messages, dead-letter handling, and upload idempotency. Audit 1 and Audit 2 ingestion idempotency cases pass; remaining Audit 3–4 findings are still being implemented, so the full suite may report expected failures. If Docker 29 rejects Testcontainers 1.19.8's API version, set `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
+- `correctnessTest` runs tagged Testcontainers tests for outbox recovery, ingestion idempotency, poison messages, dead-letter handling, and upload idempotency. Audit 1, Audit 2 ingestion idempotency, and Audit 4 idempotency-key cases pass; the remaining Audit 3 and Audit 4 content-hash findings are still being implemented, so the full suite may report failures. If Docker 29 rejects Testcontainers 1.19.8's API version, set `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
 
 ## Prerequisites
 
@@ -61,13 +63,29 @@ Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI
 
 ### Distributed-systems correctness tests
 
-Run the correctness suite from `findoc-agent/`:
+Run the full correctness suite from `findoc-agent/`:
 
 ```bash
 ./gradlew correctnessTest --console=plain
 ```
 
-This task selects JUnit tests tagged `correctness` and starts PostgreSQL/pgvector and Kafka with Testcontainers; it needs an accessible Docker socket and does not require live Gemini or OpenRouter credentials. The suite checks guarantees across asynchronous upload and ingestion—not just controller contracts—including transactional outbox delivery/recovery, redelivery and concurrent ingestion, poison records, dead-letter behavior, and duplicate-upload/idempotency behavior. The Audit 1 outbox cases pass; tests for not-yet-fixed audit findings may fail until their corresponding implementation is complete. These integration tests are separate from the standard `test` task.
+This task selects JUnit tests tagged `correctness` and starts PostgreSQL/pgvector and Kafka with Testcontainers. It needs an accessible Docker socket and does not require live Gemini or OpenRouter credentials. These are integration checks of real persistence and asynchronous messaging paths, not just controller-level tests. At a high level, they validate transactional-outbox delivery and recovery; ingestion idempotency, retry and concurrent-delivery behavior; staged embedding reuse; chunk uniqueness and upserts; stale-claim recovery; poison-record and dead-letter handling; and upload idempotency.
+
+Idempotency keys are supported on three endpoints: document upload, agent query, and document comparison. The coverage checks response replay on the endpoints and, against PostgreSQL, verifies that an identical request under the same tenant/key replays the stored response, a changed request returns HTTP 422, concurrent requests are resolved by the database uniqueness constraint, the key is isolated by tenant, and a key can be reused after its 24-hour expiry. It also verifies that a failed operation rolls back its key reservation. These tests are separate from the standard `test` task.
+
+Run the upload idempotency class on its own:
+
+```bash
+./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain
+```
+
+To run the Audit 2 ingestion-idempotency class on its own:
+
+```bash
+./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain
+```
+
+This class exercises database uniqueness for live chunks, re-ingestion upserts and stale-tail cleanup, tenant-scoped claims, and atomic handling of concurrent or duplicate deliveries. It also checks that embedding-provider calls happen outside database transactions, successful embeddings are reused after a retry or stale-claim recovery, deletion during ingestion does not restore deleted data, and stale claims are requeued through the transactional outbox. Supporting correctness tests separately verify that malformed Kafka records reach the DLQ without blocking later valid ingestion and that exhausted delivery attempts are recorded accurately. Audit 1, Audit 2 ingestion-idempotency, and the implemented Audit 4 idempotency-key cases pass; unfinished findings in Audit 3 and the remaining Audit 4 content-hash deduplication checks may still cause failures in the full suite.
 
 If Docker reports that the API version used by the installed Testcontainers dependency is too old, use:
 

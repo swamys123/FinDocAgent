@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findoc.controller.DocumentController;
 import com.findoc.entity.DocumentChunk;
+import com.findoc.dto.response.AgentResponse;
 import com.findoc.exception.GlobalExceptionHandler;
 import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.service.document.DocumentService;
+import com.findoc.service.idempotency.IdempotencyExecutor;
 import com.findoc.util.TenantContext;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -14,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -30,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 
 /** Audit 4: submitting the same upload twice must not create two documents, two ingestions or two sets of citations. */
@@ -40,6 +44,8 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
     DocumentController documentController;
     @Autowired
     DocumentChunkRepository chunkRepository;
+    @Autowired
+    IdempotencyExecutor idempotencyExecutor;
 
     final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
 
@@ -55,14 +61,19 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
         String key = UUID.randomUUID().toString();
         byte[] content = words(unique("retry"), 40).getBytes();
 
-        UUID first = postUpload(account, key, "report.txt", content).documentId;
-        UUID retry = postUpload(account, key, "report.txt", content).documentId;
+        UploadResult first = postUpload(account, key, "report.txt", content);
+        UploadResult retry = postUpload(account, key, "report.txt", content);
 
-        assertThat(retry).as("the replayed request must return the document created by the first request").isEqualTo(first);
+        assertThat(retry.documentId).as("the replayed request must return the document created by the first request")
+            .isEqualTo(first.documentId);
+        assertThat(first.status).isEqualTo(202);
+        assertThat(first.replayed).isFalse();
+        assertThat(retry.status).isEqualTo(first.status);
+        assertThat(retry.replayed).isTrue();
         assertThat(documentCount(account)).as("documents created for one logical upload").isEqualTo(1);
     }
 
-    /** Audit 4 a: the key is ignored today, so a reused key with a different payload is silently accepted. */
+    /** Audit 4 a: reusing a key with a different payload must be rejected. */
     @Test
     void idempotencyKeyReusedWithDifferentContentIsRejected() throws Exception {
         Account account = newAccount();
@@ -73,6 +84,112 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
 
         assertThat(second.status).as("key reuse with a different payload").isEqualTo(422);
         assertThat(documentCount(account)).isEqualTo(1);
+    }
+
+    @Test
+    void sameKeyIsIsolatedBetweenTenants() throws Exception {
+        Account firstAccount = newAccount();
+        Account secondAccount = newAccount();
+        String key = UUID.randomUUID().toString();
+        byte[] content = words(unique("tenant-key"), 40).getBytes();
+
+        UploadResult first = postUpload(firstAccount, key, "report.txt", content);
+        UploadResult second = postUpload(secondAccount, key, "report.txt", content);
+
+        assertThat(second.replayed).isFalse();
+        assertThat(second.documentId).isNotEqualTo(first.documentId);
+        assertThat(documentCount(firstAccount)).isEqualTo(1);
+        assertThat(documentCount(secondAccount)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentUploadsWithSameKeyCreateOneDocument() throws Exception {
+        Account account = newAccount();
+        String key = UUID.randomUUID().toString();
+        byte[] content = words(unique("concurrent-key"), 40).getBytes();
+        CyclicBarrier barrier = new CyclicBarrier(2);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Boolean> upload = () -> {
+                TenantContext.set(account.tenant().getId(), account.user().getId());
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                    var response = documentController.upload(
+                        new MockMultipartFile("file", "report.txt", "text/plain", content), key);
+                    return Boolean.parseBoolean(response.getHeaders().getFirst("Idempotent-Replayed"));
+                } finally {
+                    TenantContext.clear();
+                }
+            };
+            List<Future<Boolean>> results = List.of(pool.submit(upload), pool.submit(upload));
+            List<Boolean> replayed = results.stream().map(result -> {
+                try {
+                    return result.get(30, TimeUnit.SECONDS);
+                } catch (Exception exception) {
+                    throw new AssertionError("Concurrent idempotent upload failed", exception);
+                }
+            }).toList();
+
+            assertThat(replayed).containsExactlyInAnyOrder(false, true);
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(documentCount(account)).as("documents created by concurrent requests with one key").isEqualTo(1);
+    }
+
+    @Test
+    void expiredKeyCanBeUsedForANewRequest() throws Exception {
+        Account account = newAccount();
+        String key = UUID.randomUUID().toString();
+        UploadResult first = postUpload(account, key, "report.txt", words(unique("old"), 40).getBytes());
+        jdbc.update("update idempotency_keys set expires_at = now() - interval '1 second' "
+            + "where tenant_id = ? and idempotency_key = ?", account.tenant().getId(), key);
+
+        UploadResult afterExpiry = postUpload(account, key, "report.txt", words(unique("new"), 40).getBytes());
+
+        assertThat(afterExpiry.status).isEqualTo(202);
+        assertThat(afterExpiry.replayed).isFalse();
+        assertThat(afterExpiry.documentId).isNotEqualTo(first.documentId);
+        assertThat(documentCount(account)).isEqualTo(2);
+    }
+
+    @Test
+    void failedOperationRollsBackItsKeyReservation() {
+        Account account = newAccount();
+        String key = UUID.randomUUID().toString();
+        String fingerprint = "a".repeat(64);
+
+        assertThatThrownBy(() -> idempotencyExecutor.execute(
+            account.tenant().getId(), key, fingerprint, HttpStatus.OK, String.class,
+            () -> { throw new IllegalStateException("operation failed"); }))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessage("operation failed");
+
+        assertThat(jdbc.queryForObject(
+            "select count(*) from idempotency_keys where tenant_id = ? and idempotency_key = ?",
+            Integer.class, account.tenant().getId(), key)).isZero();
+
+        var retry = idempotencyExecutor.execute(
+            account.tenant().getId(), key, fingerprint, HttpStatus.OK, String.class, () -> "stored");
+        assertThat(retry.body()).isEqualTo("stored");
+        assertThat(retry.replayed()).isFalse();
+    }
+
+    @Test
+    void storedAgentResponseIsDeserializedForReplay() {
+        Account account = newAccount();
+        String key = UUID.randomUUID().toString();
+        AgentResponse expected = new AgentResponse(
+            UUID.randomUUID(), UUID.randomUUID(), "answer", "FACTUAL", List.of(), List.of("classify_intent"), 0.9);
+
+        idempotencyExecutor.execute(
+            account.tenant().getId(), key, "b".repeat(64), HttpStatus.OK, AgentResponse.class, () -> expected);
+        var replay = idempotencyExecutor.execute(
+            account.tenant().getId(), key, "b".repeat(64), HttpStatus.OK, AgentResponse.class,
+            () -> { throw new AssertionError("Replay must not rerun the operation"); });
+
+        assertThat(replay.body()).isEqualTo(expected);
+        assertThat(replay.replayed()).isTrue();
     }
 
     /** Audit 4 c, timeline 2: double click sends two concurrent identical requests. */
@@ -176,7 +293,7 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
         assertThat(hits).as("retrieval hits for one logical document").hasSize((int) distinctContents);
     }
 
-    private record UploadResult(int status, UUID documentId) {}
+    private record UploadResult(int status, UUID documentId, boolean replayed) {}
 
     private UploadResult postUpload(Account account, String idempotencyKey, String filename, byte[] content) throws Exception {
         TenantContext.set(account.tenant().getId(), account.user().getId());
@@ -197,7 +314,10 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
                 id = UUID.fromString(node.get("documentId").asText());
             }
         }
-        return new UploadResult(result.getResponse().getStatus(), id);
+        return new UploadResult(
+            result.getResponse().getStatus(),
+            id,
+            Boolean.parseBoolean(result.getResponse().getHeader("Idempotent-Replayed")));
     }
 
     private int documentCount(Account account) {

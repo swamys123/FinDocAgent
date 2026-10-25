@@ -4,11 +4,18 @@ import com.findoc.config.SecurityConfig;
 import com.findoc.dto.response.DocumentResponse;
 import com.findoc.service.auth.JwtService;
 import com.findoc.service.document.DocumentService;
+import com.findoc.service.idempotency.IdempotencyExecutor;
+import com.findoc.service.idempotency.IdempotencyResult;
+import com.findoc.service.idempotency.RequestFingerprint;
+import com.findoc.util.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -17,6 +24,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +50,25 @@ class DocumentControllerTest {
 
     @MockBean
     private JwtService jwtService;
+
+    @MockBean
+    private IdempotencyExecutor idempotencyExecutor;
+
+    @MockBean
+    private RequestFingerprint requestFingerprint;
+
+    private final UUID tenantId = UUID.randomUUID();
+
+    @BeforeEach
+    void setTenantContext() {
+        TenantContext.set(tenantId, UUID.randomUUID());
+        when(requestFingerprint.upload(any(), any(), any(), any())).thenReturn("fingerprint");
+    }
+
+    @AfterEach
+    void clearTenantContext() {
+        TenantContext.clear();
+    }
 
     @Test
     void listReturnsTenantDocumentsForAuthenticatedUser() throws Exception {
@@ -65,6 +94,26 @@ class DocumentControllerTest {
             .andExpect(jsonPath("$.filename").value("notes.txt"));
 
         verify(documentService).upload(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void uploadReturnsStoredResponseForIdempotentReplay() throws Exception {
+        DocumentResponse response = document("notes.txt", "text/plain");
+        MockMultipartFile file = new MockMultipartFile("file", "notes.txt", "text/plain", "hello".getBytes());
+        doReturn(new IdempotencyResult<>(HttpStatus.ACCEPTED, response, true))
+            .when(idempotencyExecutor).execute(
+                eq(tenantId), eq("upload-1"), eq("fingerprint"), eq(HttpStatus.ACCEPTED),
+                eq(DocumentResponse.class), any());
+
+        mockMvc.perform(multipart("/api/v1/documents/upload")
+                .file(file)
+                .header("Idempotency-Key", "upload-1")
+                .with(user("demo")))
+            .andExpect(status().isAccepted())
+            .andExpect(header().string("Idempotent-Replayed", "true"))
+            .andExpect(jsonPath("$.documentId").value(response.documentId().toString()));
+
+        verify(documentService, never()).upload(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

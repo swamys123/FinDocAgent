@@ -2,6 +2,9 @@ package com.findoc.controller;
 
 import com.findoc.dto.response.DocumentResponse;
 import com.findoc.service.document.DocumentService;
+import com.findoc.service.idempotency.IdempotencyExecutor;
+import com.findoc.service.idempotency.RequestFingerprint;
+import com.findoc.util.TenantContext;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,6 +15,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -25,15 +29,48 @@ import java.util.UUID;
 @Tag(name = "Documents")
 @SecurityRequirement(name = "bearer-jwt")
 public class DocumentController {
+    private static final String UPLOAD_ENDPOINT = "POST /api/v1/documents/upload";
+
     private final DocumentService service;
-    public DocumentController(DocumentService service) { this.service = service; }
+    private final IdempotencyExecutor idempotencyExecutor;
+    private final RequestFingerprint requestFingerprint;
+
+    public DocumentController(DocumentService service,
+                              IdempotencyExecutor idempotencyExecutor,
+                              RequestFingerprint requestFingerprint) {
+        this.service = service;
+        this.idempotencyExecutor = idempotencyExecutor;
+        this.requestFingerprint = requestFingerprint;
+    }
+
     @PostMapping("/upload")
     @Operation(summary = "Upload a document", responses = {
         @ApiResponse(responseCode = "202", description = "Document accepted", content = @Content(schema = @Schema(implementation = DocumentResponse.class))),
         @ApiResponse(responseCode = "400", description = "Invalid or missing file"),
+        @ApiResponse(responseCode = "422", description = "Idempotency-Key was reused with a different request"),
         @ApiResponse(responseCode = "401", description = "Authentication required")
     })
-    public ResponseEntity<DocumentResponse> upload(@RequestParam("file") MultipartFile file) throws IOException { return ResponseEntity.accepted().body(service.upload(file)); }
+    public ResponseEntity<DocumentResponse> upload(
+        @RequestParam("file") MultipartFile file,
+        @RequestHeader(name = "Idempotency-Key", required = false) String idempotencyKey
+    ) throws IOException {
+        if (idempotencyKey == null) {
+            return ResponseEntity.accepted().body(service.upload(file));
+        }
+        byte[] content = file.getBytes();
+        String fingerprint = requestFingerprint.upload(
+            UPLOAD_ENDPOINT, file.getOriginalFilename(), file.getContentType(), content);
+        var result = idempotencyExecutor.execute(
+            TenantContext.tenantId(),
+            idempotencyKey,
+            fingerprint,
+            HttpStatus.ACCEPTED,
+            DocumentResponse.class,
+            () -> service.upload(file, content));
+        return ResponseEntity.status(result.status())
+            .header("Idempotent-Replayed", Boolean.toString(result.replayed()))
+            .body(result.body());
+    }
     @GetMapping
     @Operation(summary = "List active documents", responses = {
         @ApiResponse(responseCode = "200", description = "Documents returned", content = @Content(array = @ArraySchema(schema = @Schema(implementation = DocumentResponse.class)))),

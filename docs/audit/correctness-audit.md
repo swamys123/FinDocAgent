@@ -208,5 +208,17 @@ Audit 2 is implemented: the partial live-chunk index and upsert, tenant-scoped a
 embedding calls outside transactions with durable staging, reuse of completed embeddings, explicit record-level
 acknowledgment, retry attempt tracking, stale-claim recovery through the transactional outbox, and error-handling
 deserialization for poison records. Liquibase halts on duplicate live chunks before index creation. Testcontainers
-integration tests cover these contracts, including crash-recovery scheduling and poison-message progress. Audits 3
-and 4 remain pending; Audit 3 finding b1 (accurate retry count) is also resolved by the shared failure transition.
+integration tests cover these contracts, including crash-recovery scheduling and poison-message progress. Audit 3
+remains pending; Audit 3 finding b1 (accurate retry count) is also resolved by the shared failure transition.
+
+Audit 4's idempotency-key contract is implemented for `POST /api/v1/documents/upload`,
+`POST /api/v1/agent/query`, and `POST /api/v1/agent/compare`. The tenant/key primary key arbitrates concurrent
+requests. Matching fingerprints replay the stored status and JSON response; a changed fingerprint returns 422.
+Keys expire after 24 hours, and requests without `Idempotency-Key` retain the previous behavior. Upload fingerprints
+include the filename, content type, and bytes; JSON fingerprints include the endpoint and request fields. Focused
+controller and Testcontainers coverage validates replay, mismatch rejection, tenant isolation, concurrent requests,
+expiry, and rollback of failed operations.
+
+The remaining Audit 4 work is content-hash deduplication (including a unique live-document index and duplicate
+retrieval/embedding coverage) and frontend use of idempotency keys when retry behavior is added. Audit 3 findings
+also remain pending.

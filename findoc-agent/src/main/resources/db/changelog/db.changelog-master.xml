@@ -12,4 +12,5 @@
     <include file="classpath:/db/changelog/db.changelog-005-structured-query-traces.xml"/>
     <include file="classpath:/db/changelog/db.changelog-006-outbox.xml"/>
     <include file="classpath:/db/changelog/db.changelog-007-ingestion-idempotency.xml"/>
+    <include file="classpath:/db/changelog/db.changelog-008-idempotency-keys.xml"/>
 </databaseChangeLog>

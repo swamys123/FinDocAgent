@@ -103,6 +103,19 @@ The database and uploaded-file volumes are removed only by `docker compose --env
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
 
+### Distributed-systems correctness tests
+
+The backend includes Testcontainers-based correctness tests for asynchronous upload and document ingestion. Run the full tagged suite from the repository root:
+
+```bash
+cd findoc-agent
+./gradlew correctnessTest --console=plain
+```
+
+The task selects JUnit tests tagged `correctness` and starts PostgreSQL with pgvector and Kafka in Testcontainers. It exercises real persistence and asynchronous messaging workflows rather than only mocking controllers: outbox delivery and recovery, ingestion retries and concurrent deliveries, chunk uniqueness/upserts, reuse of staged embeddings, stale-claim recovery, poison-message and dead-letter handling, and upload idempotency. The idempotency checks verify that the same tenant and key replay the original response for an identical request, a changed request returns 422, concurrent submissions are arbitrated by the database constraint, keys are tenant-isolated and expire after 24 hours, and failed work does not leave a reserved key behind. Idempotency keys are supported on document upload, agent query, and document comparison. These checks are separate from the standard unit-test task, require Docker, and do not need live Gemini or OpenRouter credentials. Some correctness tests for audit findings still being implemented may fail in the full suite. For one focused class, run `./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain`; for Audit 2 ingestion-idempotency cases, run `./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain`.
+
+See the [developer guide](docs/dev-guide/README.md) for test prerequisites, detailed coverage, and the Docker API-version workaround.
+
 ## Project Status
 
 FinDocAgent is an implemented, locally validated end-to-end system rather than a prototype. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, chunking, Gemini embeddings, pgvector cosine retrieval, bounded agent workflows, session-aware generation, citations, explain traces, document comparison, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, and grounded session-aware querying.

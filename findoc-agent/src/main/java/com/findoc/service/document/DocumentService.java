@@ -47,11 +47,16 @@ public class DocumentService {
 
     @Transactional
     public DocumentResponse upload(MultipartFile file) throws IOException {
+        return upload(file, file.getBytes());
+    }
+
+    @Transactional
+    public DocumentResponse upload(MultipartFile file, byte[] content) {
         String type = file.getContentType();
         if (!"application/pdf".equals(type) && !"text/plain".equals(type)) {
             throw new IllegalArgumentException("Only PDF and text files are supported");
         }
-        if (file.isEmpty()) {
+        if (content.length == 0) {
             throw new IllegalArgumentException("File must not be empty");
         }
 
@@ -60,7 +65,7 @@ public class DocumentService {
 
         Document document = new Document(user.getTenant(), user, file.getOriginalFilename(), type);
         Document saved = documentRepository.save(document);
-        documentSourceRepository.save(new DocumentSource(saved, user.getTenant(), file.getBytes()));
+        documentSourceRepository.save(new DocumentSource(saved, user.getTenant(), content));
         IngestionJob job = new IngestionJob(saved.getId(), TenantContext.tenantId(), TenantContext.userId());
         ingestionOutbox.enqueue(job);
         return response(saved, saved.getStatus().name(), 0);
