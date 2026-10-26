@@ -12,7 +12,7 @@ The feature set is deliberately shaped around the lifecycle of a financial docum
 
 - **Secure tenancy first:** JWTs carry `tenant_id` and `user_id`; the request context and tenant-owned data access use those claims to enforce the isolation boundary a multi-customer document product needs.
 - **Durable document intake:** PDF and text uploads are stored with status tracking, original-file download, soft deletion, and a 20 MB limit. The source remains auditable even while asynchronous processing is still running.
-- **Asynchronous ingestion:** Kafka separates the upload request from extraction and indexing. Failed jobs are retried and routed to a dead-letter topic; tenant administrators can request replay. DLQ publish safety and operational observability remain under development.
+- **Asynchronous ingestion:** Kafka separates the upload request from extraction and indexing. Failed jobs are retried and routed to a dead-letter topic; tenant administrators can request replay. DLQ publication safety, replay, and metrics are implemented; production topic settings, permissions, and alerting still need deployment verification.
 - **Retrieval-ready content:** Extracted text is split into chunks of up to 512 whitespace-delimited terms with 50-term overlap; this count uses whitespace splitting rather than a model tokenizer. PDF page counts are stored, but chunk-level page numbers are not currently assigned, so source citations may not include a page number.
 - **Tenant-safe semantic search:** Gemini embeddings and PostgreSQL/pgvector cosine retrieval filter by tenant and selected documents, returning five sources by default. This keeps relevance useful without weakening authorization.
 - **Inspectable query flow:** Queries use a fixed classify, retrieve, and generate pipeline with tenant-scoped session history, structured citations, and recorded stage traces.
@@ -107,22 +107,28 @@ The database and uploaded-file volumes are removed only by `docker compose --env
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
 
-### Distributed-systems correctness tests
+### Backend tests
 
-The backend includes Testcontainers-based correctness tests for asynchronous upload and document ingestion. Run the tagged suite from the repository root:
+From the repository root, run the unit, Docker-backed integration, and distributed-systems correctness suites:
 
 ```bash
 cd findoc-agent
-./gradlew correctnessTest --console=plain
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest --console=plain
 ```
 
-The task selects JUnit tests tagged `correctness` and starts PostgreSQL with pgvector and Kafka in Testcontainers. It exercises real persistence and asynchronous messaging workflows rather than only mocking controllers: outbox delivery and recovery, ingestion retries and concurrent deliveries, chunk uniqueness/upserts, reuse of staged embeddings, stale-claim recovery, poison-message and dead-letter handling, and upload idempotency. Idempotency keys are supported on document upload, agent query, and document comparison. The tests cover response replay for an identical tenant/key/request, HTTP 422 for a changed request, concurrent submissions, tenant isolation, 24-hour expiry, and rollback when the operation fails. These checks are separate from the standard unit-test task, require Docker, and do not need live Gemini or OpenRouter credentials. The suite includes cases for unresolved distributed-systems audit findings and is not guaranteed to pass until those findings are addressed. For focused coverage, run `./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain` or `./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain`.
+`test` runs the backend unit tests. `integrationTest` and `correctnessTest` run Docker-backed Testcontainers tests and require an accessible Docker socket. The `JAVA_TOOL_OPTIONS` setting provides Docker API compatibility for Docker 29/Testcontainers. In the verified environment, these suites passed 97 unit, 1 integration, and 38 correctness tests.
 
-See the [developer guide](docs/dev-guide/README.md) for test prerequisites, detailed coverage, and the Docker API-version workaround.
+`localIntegrationTest` is a separate suite that requires a pre-existing local PostgreSQL test database and reachable Kafka. To run all four backend test tasks after those dependencies are ready:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest localIntegrationTest --console=plain
+```
+
+There is currently no configured frontend component-test runner. See the [developer guide](docs/dev-guide/README.md) for detailed test prerequisites and coverage.
 
 ## Project Status
 
-FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, grounded session-aware querying, and recent-query trace explanations. DLQ delivery safety/observability and content-hash deduplication remain active work; see the [implementation status](docs/implementation-status.md).
+FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, grounded session-aware querying, and recent-query trace explanations. DLQ delivery safety, replay, metrics, and content-hash deduplication are implemented; production Kafka topic settings, permissions, and alerting still require deployment verification. See the [implementation status](docs/implementation-status.md).
 
 ## License
 

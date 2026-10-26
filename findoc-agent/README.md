@@ -93,15 +93,15 @@ npm run build
 npm run lint
 ```
 
-`localIntegrationTest` runs tests tagged `local-integration` against the PostgreSQL database named by `TEST_DB_NAME` (default `findoc-test-db`) and the Kafka broker configured by `KAFKA_BOOTSTRAP_SERVERS`. It validates Liquibase, BYTEA source persistence, pgvector cosine retrieval, tenant isolation, soft-deleted chunks, Kafka ingestion, chunking, and document readiness with deterministic test embeddings. Create the test database before running it:
+`test` runs the backend unit suite without Docker or live services. `integrationTest` runs only tests tagged `integration`; these use Testcontainers for PostgreSQL/pgvector and Kafka and require an accessible Docker socket. This task is separate from `localIntegrationTest`, which runs tests tagged `local-integration` against the PostgreSQL database named by `TEST_DB_NAME` (default `findoc-test-db`) and the Kafka broker configured by `KAFKA_BOOTSTRAP_SERVERS`. The local database must already exist before running the local suite:
 
 ```sql
 CREATE DATABASE "findoc-test-db";
 ```
 
-`integrationTest` remains the Testcontainers-based alternative and requires an accessible Docker socket. Provider-backed Gemini and OpenRouter validation is a separate live check and requires provider credentials in `.env`. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).
+The local suite validates Liquibase, BYTEA source persistence, pgvector cosine retrieval, tenant isolation, soft-deleted chunks, Kafka ingestion, chunking, and document readiness with deterministic test embeddings. Live Gemini and OpenRouter checks are also tagged `local-integration`; after the Spring context starts, they are skipped when their provider API keys are absent. The local settings are in `src/test/resources/application-local-pg.yml` and can be overridden by environment variables. Detailed endpoint examples and current runtime notes are in the [developer guide](../docs/dev-guide/README.md).
 
-`correctnessTest` runs the distributed-systems tests tagged `correctness`, using Testcontainers for PostgreSQL/pgvector and Kafka. It exercises upload/outbox atomicity and relay recovery, ingestion redelivery and concurrency, poison-message handling, dead-letter publishing and replay contracts, and upload idempotency/content deduplication. Audit 1 and Audit 2 ingestion-idempotency tests pass; other Audit 3–4 findings may still fail until implemented. The task is separate from `test`, which excludes integration-test classes. If Testcontainers reports that Docker API 1.32 is too old, run it with `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`:
+`correctnessTest` runs the distributed-systems tests tagged `correctness`, also using Testcontainers for PostgreSQL/pgvector and Kafka. It exercises upload/outbox atomicity and relay recovery, ingestion redelivery and concurrency, poison-message handling, dead-letter publishing and replay contracts, and upload idempotency/content deduplication. Audits 1–4 are implemented and covered by this suite. If Testcontainers reports that Docker API 1.32 is too old, run either Docker-backed task with `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`:
 
 ```bash
 JAVA_TOOL_OPTIONS=-Dapi.version=1.44 ./gradlew correctnessTest --console=plain

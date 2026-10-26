@@ -34,6 +34,10 @@ class PostgresKafkaIntegrationTest {
         registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
         registry.add("spring.kafka.bootstrap-servers", kafka::getBootstrapServers);
         registry.add("spring.liquibase.enabled", () -> "true");
+        registry.add("spring.liquibase.change-log",
+            () -> "classpath:/db/changelog/db.changelog-master.xml");
+        registry.add("spring.jpa.properties.hibernate.dialect",
+            () -> "org.hibernate.dialect.PostgreSQLDialect");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
     }
 

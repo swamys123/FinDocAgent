@@ -30,13 +30,13 @@ Implemented so far:
 - Session and trace persistence with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
 - OpenRouter-backed generation with structured comparison fallback and response validation
 - React frontend with login, document management, status polling, document selection, session-aware queries, and recent-query trace explanations
-- Backend CORS configuration for the local frontend origin, plus successful frontend build and lint validation
+- Backend CORS configuration for the local frontend origin. The frontend currently has no component test runner, and full-repository build/lint are blocked by existing errors in `LoginPage.tsx` and `TracesPage.tsx`; focused checks for changed frontend modules passed.
 - Generated OpenAPI documentation and Swagger UI with bearer JWT security metadata
 
 Current runtime caveats:
 
-- `integrationTest` and `localIntegrationTest` use the local PostgreSQL/Kafka settings; `localIntegrationTest` also includes live-provider tests, which skip when the corresponding Gemini/OpenRouter key is absent. The tagged `correctnessTest` suite uses Testcontainers and requires an accessible Docker socket.
-- The correctness suite covers outbox delivery/recovery, ingestion idempotency, poison messages, dead-letter handling, upload idempotency, and unresolved audit cases. Focused cases have previously passed as listed above, but the full suite is not guaranteed to pass while Audit 3 DLQ delivery safety/observability and Audit 4 content-hash deduplication remain unfinished. If Docker 29 rejects the Testcontainers Docker API negotiation, `JAVA_TOOL_OPTIONS=-Dapi.version=1.44` is a recorded workaround; verify compatibility with the installed Docker/Testcontainers versions before relying on it.
+- `integrationTest` runs tests tagged `integration` with PostgreSQL/Kafka Testcontainers and requires an accessible Docker socket. `localIntegrationTest` runs tests tagged `local-integration` against local PostgreSQL and Kafka; its PostgreSQL test database must already exist. It also includes live-provider tests, which skip when the corresponding Gemini/OpenRouter key is absent.
+- `correctnessTest` uses Testcontainers and covers outbox delivery/recovery, ingestion idempotency, poison messages, dead-letter handling, upload idempotency, and content-hash deduplication. Audits 1–4 are implemented, and the full suite has passed. If Docker 29 rejects the Testcontainers Docker API negotiation, use `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
 
 ## Prerequisites
 
@@ -62,12 +62,34 @@ Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
 
+### Run backend test suites
+
+From `findoc-agent/`, run the unit, Docker-backed integration, and distributed-systems correctness suites together:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest --console=plain
+```
+
+The API-version setting works around Docker 29/Testcontainers compatibility. These suites passed together in the verified environment. `integrationTest` and `correctnessTest` require Docker with an accessible socket.
+
+`localIntegrationTest` is separate because it requires a pre-existing local PostgreSQL test database and a reachable Kafka broker. Run it from the same directory when those dependencies are ready:
+
+```bash
+./gradlew localIntegrationTest --console=plain
+```
+
+To run all four backend Gradle test tasks, including the local integration suite:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest localIntegrationTest --console=plain
+```
+
 ### Distributed-systems correctness tests
 
 Run the full correctness suite from `findoc-agent/`:
 
 ```bash
-./gradlew correctnessTest --console=plain
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew correctnessTest --console=plain
 ```
 
 This task selects JUnit tests tagged `correctness` and starts PostgreSQL/pgvector and Kafka with Testcontainers. It needs an accessible Docker socket and does not require live Gemini or OpenRouter credentials. These are integration checks of real persistence and asynchronous messaging paths, not just controller-level tests. At a high level, they validate transactional-outbox delivery and recovery; ingestion idempotency, retry and concurrent-delivery behavior; staged embedding reuse; chunk uniqueness and upserts; stale-claim recovery; poison-record and dead-letter handling; and upload idempotency.
@@ -86,12 +108,12 @@ To run the Audit 2 ingestion-idempotency class on its own:
 ./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain
 ```
 
-This class exercises database uniqueness for live chunks, re-ingestion upserts and stale-tail cleanup, tenant-scoped claims, and atomic handling of concurrent or duplicate deliveries. It also checks that embedding-provider calls happen outside database transactions, successful embeddings are reused after a retry or stale-claim recovery, deletion during ingestion does not restore deleted data, and stale claims are requeued through the transactional outbox. Supporting correctness tests separately verify that malformed Kafka records reach the DLQ without blocking later valid ingestion and that exhausted delivery attempts are recorded accurately. Audit 1, Audit 2 ingestion-idempotency, and the implemented Audit 4 idempotency-key cases pass; unfinished findings in Audit 3 and the remaining Audit 4 content-hash deduplication checks may still cause failures in the full suite.
+This class exercises database uniqueness for live chunks, re-ingestion upserts and stale-tail cleanup, tenant-scoped claims, and atomic handling of concurrent or duplicate deliveries. It also checks that embedding-provider calls happen outside database transactions, successful embeddings are reused after a retry or stale-claim recovery, deletion during ingestion does not restore deleted data, and stale claims are requeued through the transactional outbox. Supporting correctness tests separately verify that malformed Kafka records reach the DLQ without blocking later valid ingestion and that exhausted delivery attempts are recorded accurately. Audit 1–4 correctness coverage is implemented and the full suite passes.
 
 If Docker reports that the API version used by the installed Testcontainers dependency is too old, use:
 
 ```bash
-JAVA_TOOL_OPTIONS=-Dapi.version=1.44 ./gradlew correctnessTest --console=plain
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew correctnessTest --console=plain
 ```
 
 ### Configuration reference
@@ -320,7 +342,7 @@ curl -i -X POST http://localhost:8080/api/v1/admin/dlq/0e5dc0a9-f855-4b46-a2b9-6
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-The endpoint returns HTTP 202 when replay is queued or already pending, HTTP 403 unless the authenticated user has the `ADMIN` role, HTTP 404 for a missing or cross-tenant document, and HTTP 409 when the document is processing or already ready. The seeded demo account has the `USER` role and cannot use this endpoint. Role assignment is a trusted provisioning task; there is no self-service role elevation API. DLQ publish atomicity, retry recovery, topic provisioning, and operational observability remain pending audit work.
+The endpoint returns HTTP 202 when replay is queued or already pending, HTTP 403 unless the authenticated user has the `ADMIN` role, HTTP 404 for a missing or cross-tenant document, and HTTP 409 when the document is processing or already ready. The seeded demo account has the `USER` role and cannot use this endpoint. Role assignment is a trusted provisioning task; there is no self-service role elevation API. DLQ publish atomicity, retry recovery, topic provisioning, and metrics are implemented; effective production topic settings, permissions, and alerting still require deployment verification.
 
 ## Agent Query API (Ask Questions)
 
