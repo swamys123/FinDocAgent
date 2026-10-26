@@ -10,15 +10,15 @@ FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial docume
 
 The feature set is deliberately shaped around the lifecycle of a financial document rather than a generic chatbot demo:
 
-- **Secure tenancy first:** JWTs carry `tenant_id` and `user_id`, and those claims flow into request tracing and every persistence query. This demonstrates the isolation boundary that a multi-customer document product needs.
+- **Secure tenancy first:** JWTs carry `tenant_id` and `user_id`; the request context and tenant-owned data access use those claims to enforce the isolation boundary a multi-customer document product needs.
 - **Durable document intake:** PDF and text uploads are stored with status tracking, original-file download, soft deletion, and a 20 MB limit. The source remains auditable even while asynchronous processing is still running.
-- **Asynchronous ingestion:** Kafka separates the upload request from extraction and indexing. Retry tracking and a dead-letter topic make failed processing observable and recoverable instead of blocking the API request.
-- **Retrieval-ready content:** Documents are chunked into 512-token sections with 50-token overlap and page metadata. The overlap preserves context at boundaries while page data keeps citations useful to a reviewer.
+- **Asynchronous ingestion:** Kafka separates the upload request from extraction and indexing. Failed jobs are retried and routed to a dead-letter topic; tenant administrators can request replay. DLQ publish safety and operational observability remain under development.
+- **Retrieval-ready content:** Extracted text is split into chunks of up to 512 whitespace-delimited terms with 50-term overlap; this count uses whitespace splitting rather than a model tokenizer. PDF page counts are stored, but chunk-level page numbers are not currently assigned, so source citations may not include a page number.
 - **Tenant-safe semantic search:** Gemini embeddings and PostgreSQL/pgvector cosine retrieval filter by tenant and selected documents, returning five sources by default. This keeps relevance useful without weakening authorization.
-- **Bounded agent behavior:** Intent classification, a five-iteration ceiling, session history, structured citations, and stage-level traces make the agent inspectable and operationally bounded.
+- **Inspectable query flow:** Queries use a fixed classify, retrieve, and generate pipeline with tenant-scoped session history, structured citations, and recorded stage traces.
 - **Evidence-based comparison:** Comparison retrieves evidence independently for each requested document, reducing the risk that one document silently dominates the result.
 - **Provider resilience:** Gemini handles embeddings while OpenRouter handles generation, with response validation, circuit breakers, and local fallback behavior for generation failures. Provider responsibilities stay explicit and replaceable.
-- **Operational foundations:** Liquibase migrations, seeded local demo data, request logging with trace context, generated OpenAPI documentation with Swagger UI, and a small React workflow make the system demonstrable from upload through grounded answer.
+- **Operational foundations:** Liquibase migrations, seeded local demo data, request logging with trace context, generated OpenAPI documentation with Swagger UI, tenant-scoped HTTP idempotency keys for uploads/queries/comparisons, and role-gated tenant-admin DLQ replay support the core workflow.
 
 ## Architecture
 
@@ -60,7 +60,7 @@ For a follow-up that tests cross-section retrieval and careful interpretation, a
 
 Both examples use the same agreement and selected-document query flow. Answers appear before the source cards; scroll below the answer to inspect the retrieved excerpts. The screenshots show the response text, detected intent, confidence, and source evidence.
 
-The query is executed through the backend in five visible stages:
+The backend processes a query through three recorded stages, then persists the conversation and trace:
 
 1. **classify_intent:** The system identifies what kind of question is being asked.
 2. **vector_search:** It finds the most relevant passages in the selected documents while respecting the user's document access.
@@ -68,7 +68,7 @@ The query is executed through the backend in five visible stages:
 4. **Persist the conversation:** The question and answer are saved so the session can continue naturally.
 5. **Persist the trace:** The system records the intent, confidence, timings, and stage results so the answer can be reviewed later.
 
-The Recent Queries page shows the user's latest questions in one place. Selecting **Explain** opens the recorded `classify_intent`, `vector_search`, and `generate_report` stages, including their timings and a concise view of what each stage received and produced. This gives reviewers a practical explanation of how the answer was formed without exposing internal implementation details.
+The Recent Queries page lists up to the user's five most recent queries. Selecting **Explain** opens the recorded `classify_intent`, `vector_search`, and `generate_report` stages, including their timings and a concise view of what each stage received and produced. This gives reviewers a practical explanation of how the answer was formed without exposing internal implementation details.
 
 ![FinDocAgent recent queries including the new SLA comparison and follow-up](screens/Recent_Queries.png)
 
@@ -80,7 +80,7 @@ Watch the [FinDocAgent demo recording](https://youtu.be/Wnl3h9jDs8c) for an over
 
 ## Quick Start: Run Everything with Docker Compose
 
-From the repository root, create the local environment file if it does not already exist, then replace its placeholder `JWT_SECRET`:
+From the repository root, create the local environment file only if it does not already exist, then replace its placeholder `JWT_SECRET`:
 
 ```bash
 cp -n findoc-agent/.env.example findoc-agent/.env
@@ -109,20 +109,20 @@ For prerequisites, local backend and frontend setup, configuration, public endpo
 
 ### Distributed-systems correctness tests
 
-The backend includes Testcontainers-based correctness tests for asynchronous upload and document ingestion. Run the full tagged suite from the repository root:
+The backend includes Testcontainers-based correctness tests for asynchronous upload and document ingestion. Run the tagged suite from the repository root:
 
 ```bash
 cd findoc-agent
 ./gradlew correctnessTest --console=plain
 ```
 
-The task selects JUnit tests tagged `correctness` and starts PostgreSQL with pgvector and Kafka in Testcontainers. It exercises real persistence and asynchronous messaging workflows rather than only mocking controllers: outbox delivery and recovery, ingestion retries and concurrent deliveries, chunk uniqueness/upserts, reuse of staged embeddings, stale-claim recovery, poison-message and dead-letter handling, and upload idempotency. The idempotency checks verify that the same tenant and key replay the original response for an identical request, a changed request returns 422, concurrent submissions are arbitrated by the database constraint, keys are tenant-isolated and expire after 24 hours, and failed work does not leave a reserved key behind. Idempotency keys are supported on document upload, agent query, and document comparison. These checks are separate from the standard unit-test task, require Docker, and do not need live Gemini or OpenRouter credentials. Some correctness tests for audit findings still being implemented may fail in the full suite. For one focused class, run `./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain`; for Audit 2 ingestion-idempotency cases, run `./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain`.
+The task selects JUnit tests tagged `correctness` and starts PostgreSQL with pgvector and Kafka in Testcontainers. It exercises real persistence and asynchronous messaging workflows rather than only mocking controllers: outbox delivery and recovery, ingestion retries and concurrent deliveries, chunk uniqueness/upserts, reuse of staged embeddings, stale-claim recovery, poison-message and dead-letter handling, and upload idempotency. Idempotency keys are supported on document upload, agent query, and document comparison. The tests cover response replay for an identical tenant/key/request, HTTP 422 for a changed request, concurrent submissions, tenant isolation, 24-hour expiry, and rollback when the operation fails. These checks are separate from the standard unit-test task, require Docker, and do not need live Gemini or OpenRouter credentials. The suite includes cases for unresolved distributed-systems audit findings and is not guaranteed to pass until those findings are addressed. For focused coverage, run `./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain` or `./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain`.
 
 See the [developer guide](docs/dev-guide/README.md) for test prerequisites, detailed coverage, and the Docker API-version workaround.
 
 ## Project Status
 
-FinDocAgent is an implemented, locally validated end-to-end system rather than a prototype. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, chunking, Gemini embeddings, pgvector cosine retrieval, bounded agent workflows, session-aware generation, citations, explain traces, document comparison, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, and grounded session-aware querying.
+FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, grounded session-aware querying, and recent-query trace explanations. DLQ delivery safety/observability and content-hash deduplication remain active work; see the [implementation status](docs/implementation-status.md).
 
 ## License
 
