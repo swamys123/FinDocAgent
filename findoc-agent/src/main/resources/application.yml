@@ -24,8 +24,9 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
     consumer:
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
       properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
         spring.json.trusted.packages: com.findoc.messaging
         spring.json.value.default.type: com.findoc.messaging.IngestionJob
     listener:
@@ -64,11 +65,21 @@ findoc:
     topic: ${FINDOC_INGESTION_TOPIC:findoc.ingestion}
     group: ${FINDOC_INGESTION_GROUP:findoc-ingestion}
     dlq: ${FINDOC_INGESTION_DLQ:findoc.ingestion.dlq}
+    processing-lease-ms: ${INGESTION_PROCESSING_LEASE_MS:300000}
+    recovery:
+      poll-interval-ms: ${INGESTION_RECOVERY_POLL_INTERVAL_MS:30000}
+      batch-size: ${INGESTION_RECOVERY_BATCH_SIZE:20}
     retry:
       initial-interval-ms: ${FINDOC_INGESTION_RETRY_INITIAL_INTERVAL_MS:1000}
       multiplier: ${FINDOC_INGESTION_RETRY_MULTIPLIER:2.0}
       max-interval-ms: ${FINDOC_INGESTION_RETRY_MAX_INTERVAL_MS:10000}
       max-retries: ${FINDOC_INGESTION_RETRY_MAX_RETRIES:2}
+    dlq-partitions: ${FINDOC_INGESTION_DLQ_PARTITIONS:3}
+    dlq-replication-factor: ${FINDOC_INGESTION_DLQ_REPLICATION_FACTOR:1}
+    dlq-retention-ms: ${FINDOC_INGESTION_DLQ_RETENTION_MS:604800000}
+    outbox:
+      poll-interval-ms: ${FINDOC_INGESTION_OUTBOX_POLL_INTERVAL_MS:1000}
+      batch-size: ${FINDOC_INGESTION_OUTBOX_BATCH_SIZE:20}
 
 logging:
   level:
@@ -79,4 +90,4 @@ logging:
     name: ${LOG_FILE:findoc-agent.log}
 
 management:
-  endpoints.web.exposure.include: health,info
+  endpoints.web.exposure.include: health,info,metrics

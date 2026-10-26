@@ -4,11 +4,11 @@
 
 The implementation is now beyond the initial scaffold and includes the main tenant-aware backend flow for document ingestion and agent querying.
 
-Verified in this workspace:
+Previously recorded validation (not rerun during this documentation update):
 
-- `cd findoc-agent && ./gradlew test --console=plain` passed successfully.
-- `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` passed against local PostgreSQL/pgvector and Kafka.
-- `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
+- `test`: **97 passed**; Docker-backed `integrationTest`: **1 passed**; `correctnessTest`: **38 passed** using `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
+- On 2026-10-26, `localIntegrationTest` passed all **5 tests** against local PostgreSQL/pgvector and Kafka, including three live-provider tests.
+- Frontend `npm test`: **8 passed** across the login and recent-trace component suites; `npm run build` and `npm run lint` passed; `npm audit` reported no vulnerabilities.
 
 Implemented so far:
 
@@ -16,27 +16,32 @@ Implemented so far:
 - Tenant-aware JWT authentication with both `tenant_id` and `user_id` claims
 - Protected document APIs for listing, uploading, checking status, and deleting documents
 - Tenant-scoped persistence and seeded demo tenant/user data
-- Text/PDF extraction with page-count persistence and document source handling
-- Chunking at 512 tokens with 50-token overlap
+- Text/PDF extraction with PDF page-count persistence and document source handling; chunk-level page numbers are not currently assigned
+- Chunking at up to 512 whitespace-delimited terms with 50-term overlap; counts use whitespace splitting, not a model tokenizer
 - pgvector-backed similarity search using cosine distance (`<=>`) with tenant and document scoping
 - Kafka ingestion producer/consumer wiring with retry/DLQ handling checks
-- Agent query flow with intent classification, vector retrieval, structured citations, and a five-iteration cap
-- Tenant-scoped session history and query-trace explanation endpoints
+- Fixed three-stage agent query flow with intent classification, vector retrieval, and structured citations
+- Tenant-scoped session history and query-trace explanation endpoints, plus a recent-query trace screen in the frontend
 - Tenant-safe document comparison with independent retrieval for each document
+- Optional tenant-scoped HTTP idempotency keys for upload, query, and comparison; tenant-admin replay for failed ingestion jobs
+- Tenant-scoped document content-hash deduplication and manual upload retry using the same idempotency key for that attempt
 - Session and trace persistence with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
 - OpenRouter-backed generation with structured comparison fallback and response validation
-- Basic React frontend with login, document management, status polling, document selection, and session-aware queries
-- Backend CORS configuration for the local frontend origin, plus successful frontend build and lint validation
+- React frontend with login, document management, status polling, document selection, session-aware queries, and recent-query trace explanations
+- Vitest component tests for login success/failure states and recent-trace loading, empty, failure, and detail-expansion states
+- Backend CORS configuration for the local frontend origin
 - Generated OpenAPI documentation and Swagger UI with bearer JWT security metadata
 
-Current runtime caveat:
+Current runtime caveats:
 
-- The local PostgreSQL/pgvector and Kafka workflow is covered by `localIntegrationTest`; live Gemini and OpenRouter provider validation remains separate. The containerized `integrationTest` task requires an accessible Docker socket.
+- `integrationTest` runs tests tagged `integration` with PostgreSQL/Kafka Testcontainers and requires an accessible Docker socket. `localIntegrationTest` runs tests tagged `local-integration` against local PostgreSQL and Kafka; its PostgreSQL test database must already exist. It also includes live-provider tests, which skip when the corresponding Gemini/OpenRouter key is absent.
+- `correctnessTest` uses Testcontainers and covers outbox delivery/recovery, ingestion idempotency, poison messages, dead-letter handling, upload idempotency, and content-hash deduplication. Audits 1–4 are implemented, and the full suite has passed. If Docker 29 rejects the Testcontainers Docker API negotiation, use `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
 
 ## Prerequisites
 
 - Java 17
 - PostgreSQL running locally on `localhost:5432`
+- Apache Kafka running locally on `localhost:9092`
 - Database name: `findoc`
 - Database user: `postgres`
 - Database password: `postgres`
@@ -49,13 +54,67 @@ From the project root:
 
 ```bash
 cd findoc-agent
-cp .env.example .env
+cp -n .env.example .env
 ./gradlew bootRun --console=plain
 ```
 
-Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, `localIntegrationTest`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence.
+Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, `localIntegrationTest`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence. The `-n` option preserves any existing local `.env`.
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
+
+### Run backend test suites
+
+From `findoc-agent/`, run the unit, Docker-backed integration, and distributed-systems correctness suites together:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest --console=plain
+```
+
+The API-version setting works around Docker 29/Testcontainers compatibility. These suites passed together in the verified environment. `integrationTest` and `correctnessTest` require Docker with an accessible socket.
+
+`localIntegrationTest` is separate because it requires a pre-existing local PostgreSQL test database and a reachable Kafka broker. Run it from the same directory when those dependencies are ready:
+
+```bash
+./gradlew localIntegrationTest --console=plain
+```
+
+To run all four backend Gradle test tasks, including the local integration suite:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest localIntegrationTest --console=plain
+```
+
+### Distributed-systems correctness tests
+
+Run the full correctness suite from `findoc-agent/`:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew correctnessTest --console=plain
+```
+
+This task selects JUnit tests tagged `correctness` and starts PostgreSQL/pgvector and Kafka with Testcontainers. It needs an accessible Docker socket and does not require live Gemini or OpenRouter credentials. These are integration checks of real persistence and asynchronous messaging paths, not just controller-level tests. At a high level, they validate transactional-outbox delivery and recovery; ingestion idempotency, retry and concurrent-delivery behavior; staged embedding reuse; chunk uniqueness and upserts; stale-claim recovery; poison-record and dead-letter handling; and upload idempotency.
+
+Idempotency keys are supported on three endpoints: document upload, agent query, and document comparison. The coverage checks response replay on the endpoints and, against PostgreSQL, verifies that an identical request under the same tenant/key replays the stored response, a changed request returns HTTP 422, concurrent requests are resolved by the database uniqueness constraint, the key is isolated by tenant, and a key can be reused after its 24-hour expiry. It also verifies that a failed operation rolls back its key reservation. These tests are separate from the standard `test` task.
+
+Run the upload idempotency class on its own:
+
+```bash
+./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain
+```
+
+To run the Audit 2 ingestion-idempotency class on its own:
+
+```bash
+./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain
+```
+
+This class exercises database uniqueness for live chunks, re-ingestion upserts and stale-tail cleanup, tenant-scoped claims, and atomic handling of concurrent or duplicate deliveries. It also checks that embedding-provider calls happen outside database transactions, successful embeddings are reused after a retry or stale-claim recovery, deletion during ingestion does not restore deleted data, and stale claims are requeued through the transactional outbox. Supporting correctness tests separately verify that malformed Kafka records reach the DLQ without blocking later valid ingestion and that exhausted delivery attempts are recorded accurately. Audit 1–4 correctness coverage is implemented and the full suite passes.
+
+If Docker reports that the API version used by the installed Testcontainers dependency is too old, use:
+
+```bash
+JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew correctnessTest --console=plain
+```
 
 ### Configuration reference
 
@@ -75,7 +134,7 @@ The frontend uses a separate non-secret file at `findoc-agent/frontend/.env`:
 
 - `VITE_API_BASE_URL` sets the backend base URL used by browser API requests and defaults to `http://localhost:8080` in `.env.example`.
 
-The application accepts uploads up to 20 MB (`max-file-size` and `max-request-size`). Agent retrieval defaults to five sources (`agent.top-k`) and the agent loop remains capped at five iterations (`agent.max-iterations`).
+The application accepts uploads up to 20 MB (`max-file-size` and `max-request-size`). Agent retrieval defaults to five sources (`agent.top-k`). The configuration declares `agent.max-iterations=5` and clamps the value to at most five, but the current query path is a fixed classify/retrieve/generate sequence rather than an iterative tool loop.
 
 The application listens on:
 
@@ -89,7 +148,7 @@ From the frontend directory:
 
 ```bash
 cd findoc-agent/frontend
-cp .env.example .env
+cp -n .env.example .env
 npm ci
 npm run dev
 ```
@@ -101,11 +160,12 @@ The backend allows `http://localhost:5173` by default. When the frontend runs at
 Frontend validation commands are:
 
 ```bash
+npm test
 npm run build
 npm run lint
 ```
 
-The basic frontend does not currently include screens for session history, document comparison, or query explanation; those remain available through the backend API.
+`npm test` runs the Vitest component suite (eight tests across `LoginPage` and `TracesPage`). The frontend includes a Recent Queries screen with expandable explanations for recorded traces and supports safe retry of a failed upload with the same idempotency key. It does not currently include session-history or document-comparison screens; those remain available through the backend API.
 
 The project uses Spring Security to protect API endpoints. Public endpoints are:
 
@@ -123,7 +183,7 @@ With the backend running locally, access the generated API documentation at:
 - OpenAPI JSON: http://localhost:8080/v3/api-docs
 - Swagger UI: http://localhost:8080/swagger-ui/index.html
 
-The Swagger UI groups the implemented APIs under Authentication, Documents, and Agent. Click **Authorize** and enter the JWT returned by `/api/v1/auth/token` to try protected operations. The authorization value should use the bearer token returned by the authentication endpoint.
+The Swagger UI groups the implemented APIs under Authentication, Documents, Agent, and Administration. Click **Authorize** and enter the JWT returned by `/api/v1/auth/token` to try protected operations. Administration operations additionally require a tenant administrator role.
 
 To inspect the raw specification from a terminal:
 
@@ -133,7 +193,7 @@ curl -i http://localhost:8080/v3/api-docs
 
 ## Demo Login (Seeded Account)
 
-The database changelog seeds a demo tenant and user:
+The database changelog seeds a demo tenant and user. The seeded password hash has been verified against `demo123`:
 
 - Tenant ID: `00000000-0000-0000-0000-000000000001`
 - Username: `demo@findoc.local`
@@ -186,6 +246,8 @@ TOKEN="<accessToken value>"
 
 ## Document APIs
 
+The JSON responses below show API shapes; example IDs, timestamps, scores, durations, and generated text are illustrative unless explicitly described as configured values.
+
 ### List documents
 
 ```bash
@@ -202,7 +264,7 @@ Sample response:
     "filename": "sample.txt",
     "fileType": "text/plain",
     "status": "PENDING",
-    "chunkCount": 3,
+    "chunkCount": 0,
     "createdAt": "2026-08-28T16:30:12.345Z"
   }
 ]
@@ -224,12 +286,12 @@ Sample response:
   "filename": "sample.txt",
   "fileType": "text/plain",
   "status": "PENDING",
-  "chunkCount": 3,
+  "chunkCount": 0,
   "createdAt": "2026-08-28T16:30:12.345Z"
 }
 ```
 
-The upload endpoint returns HTTP 202 Accepted. The document starts in `PENDING` while a Kafka ingestion job extracts text, stores the page count, chunks content at 512 tokens with 50-token overlap, creates embeddings, and marks the document `READY`. Processing failures mark the document `FAILED` after retry handling; a document must be `READY` before it can provide indexed content for queries or comparisons.
+The upload endpoint returns HTTP 202 Accepted. The document starts in `PENDING` while a Kafka ingestion job extracts text, stores the PDF page count, splits the extracted text into chunks of up to 512 whitespace-delimited terms with 50-term overlap, creates embeddings, and marks the document `READY`. The chunk count uses whitespace splitting, not a model tokenizer. Page counts are persisted, but the current ingestion path does not assign page numbers to individual chunks, so the source `pageNumber` field can be `null`. Processing failures mark the document `FAILED` after retry handling; a document must be `READY` before it can provide indexed content for queries or comparisons.
 
 ### Check document status
 
@@ -246,7 +308,7 @@ Sample response:
   "filename": "sample.txt",
   "fileType": "text/plain",
   "status": "PENDING",
-  "chunkCount": 3,
+  "chunkCount": 0,
   "createdAt": "2026-08-28T16:30:12.345Z"
 }
 ```
@@ -272,11 +334,22 @@ Response is HTTP 204 No Content.
 
 Common invalid, missing, or unauthenticated requests return Spring `ProblemDetail` JSON with `type`, `title`, `status`, and `detail` fields. Examples include HTTP 400 for unsupported or empty files, invalid query/comparison input, or documents that are not ready; HTTP 401 for missing/invalid credentials; and HTTP 404 for tenant-scoped resources that do not exist. Document lookup and download remain tenant-scoped by the claims in the bearer token.
 
+### Replay a failed ingestion job
+
+Tenant administrators can request replay of a failed document through the transactional outbox. The endpoint derives the tenant from the JWT and reuses the document's stored owner; callers cannot supply either identifier. Repeating the request while the document is already `PENDING` does not enqueue another job.
+
+```bash
+curl -i -X POST http://localhost:8080/api/v1/admin/dlq/0e5dc0a9-f855-4b46-a2b9-6f4d88cee0b9/replay \
+  -H "Authorization: Bearer $ADMIN_TOKEN"
+```
+
+The endpoint returns HTTP 202 when replay is queued or already pending, HTTP 403 unless the authenticated user has the `ADMIN` role, HTTP 404 for a missing or cross-tenant document, and HTTP 409 when the document is processing or already ready. The seeded demo account has the `USER` role and cannot use this endpoint. Role assignment is a trusted provisioning task; there is no self-service role elevation API. DLQ publish atomicity, retry recovery, topic provisioning, and metrics are implemented; effective production topic settings, permissions, and alerting still require deployment verification.
+
 ## Agent Query API (Ask Questions)
 
 Use an omitted `sessionId` for the first question. Save the returned `sessionId` and provide it in a follow-up query.
 
-`query` is required. `documentIds` and `sessionId` are optional: omit `documentIds` for tenant-scoped retrieval across the tenant's indexed documents, and omit `sessionId` to start a new session. Results are limited to the configured `agent.top-k` value, five by default. `pageNumber` may be absent for source content without page metadata.
+`query` is required. `documentIds` and `sessionId` are optional: omit `documentIds` for tenant-scoped retrieval across the tenant's indexed documents, and omit `sessionId` to start a new session. Results are limited to the configured `agent.top-k` value, five by default. PDF page counts are stored, but the current ingestion path does not set chunk-level page numbers, so source `pageNumber` values are currently `null`.
 
 Request:
 
@@ -296,7 +369,7 @@ Sample response:
 {
   "queryId": "fce381db-c5d8-4a8e-b9d9-cf08436c522f",
   "sessionId": "6a1c86f1-674d-4b50-b8d5-6b5fef5c1be1",
-  "answer": "Relevant content found in 3 chunks.",
+  "answer": "[Illustrative generated answer based on retrieved content.]",
   "intent": "SUMMARISE",
   "sources": [
     {
@@ -305,7 +378,7 @@ Sample response:
       "filename": "sample.txt",
       "content": "This report highlights liquidity risk and margin pressure.",
       "similarityScore": 0.91,
-      "pageNumber": 1
+      "pageNumber": null
     }
   ],
   "stepsTaken": [
@@ -384,13 +457,13 @@ Sample response:
       "step": 2,
       "tool": "vector_search",
       "input": { "topK": 5, "documentIds": [] },
-      "output": { "chunksFound": 5, "topScore": 0.87, "scores": [0.87, 0.83] },
+      "output": { "chunksFound": 2, "topScore": 0.87, "scores": [0.87, 0.83] },
       "durationMs": 24
     },
     {
       "step": 3,
       "tool": "generate_report",
-      "input": { "chunkCount": 5, "format": "summary" },
+      "input": { "chunkCount": 2, "format": "summary" },
       "output": { "answerLength": 634 },
       "durationMs": 298
     }
@@ -434,12 +507,25 @@ Sample response:
       "filename": "agreement-a.txt",
       "content": "Termination requires 30 days written notice.",
       "similarityScore": 0.88,
-      "pageNumber": 1
+      "pageNumber": null
     }
   ],
-  "documentBSources": []
+  "documentBSources": [
+    {
+      "chunkId": "5d5dd6dd-43fd-4e62-b4cb-e194e2c1df63",
+      "documentId": "f44d15a8-b94d-4085-b1c3-23db7a915cc9",
+      "filename": "agreement-b.txt",
+      "content": "Termination requires 90 days written notice.",
+      "similarityScore": 0.86,
+      "pageNumber": null
+    }
+  ]
 }
 ```
+
+## Optional HTTP idempotency keys
+
+The upload, agent query, and document comparison `POST` endpoints accept an optional `Idempotency-Key` header. Keys are scoped to the authenticated tenant, must be non-blank and at most 255 characters, and expire after 24 hours. A repeated request with the same key and request fingerprint replays the stored status and response; reusing the key with a different request returns HTTP 422. Responses for keyed requests include `Idempotent-Replayed: true` or `false`. These headers are allowed/exposed by the configured API CORS policy. The frontend uses a stable key for a given upload attempt, so retrying after a failed request does not create a duplicate upload. It does not currently attach keys to query or comparison requests.
 
 ## Verification checklist
 
@@ -452,17 +538,17 @@ Before you consider a local test successful, confirm:
 5. A document upload returns HTTP 202 and a `DocumentResponse` with a valid `documentId`.
 6. A protected request without a token returns HTTP 401.
 7. After the document is `READY`, an agent query returns non-empty structured `sources`, `queryId`, and `sessionId`.
-8. `GET /api/v1/agent/sessions/{sessionId}` and `GET /api/v1/agent/explain/{queryId}` return HTTP 200 for IDs returned by the query endpoint.
-9. Comparing two tenant-owned `READY` documents returns HTTP 200 and source arrays for both document scopes.
+8. `GET /api/v1/agent/sessions/{sessionId}`, `GET /api/v1/agent/explain/{queryId}`, and `GET /api/v1/agent/traces/recent` return HTTP 200 for the authenticated user's records.
+9. Comparing two tenant-owned `READY` documents returns HTTP 200 and includes separate source arrays for the two document scopes.
 10. For live end-to-end verification, confirm Kafka ingestion, PostgreSQL/pgvector persistence and retrieval, and provider-backed Gemini/OpenRouter calls separately; unit tests and application startup do not prove those integrations.
 
-For frontend verification, also confirm that login succeeds, documents can be selected and uploaded, status polling reaches `READY` or `FAILED`, and a follow-up query reuses the returned session.
+For frontend verification, also confirm that login succeeds, documents can be selected and uploaded, status polling reaches `READY` or `FAILED`, follow-up queries reuse the returned session, and the Recent Queries screen lists and expands trace details.
 
 ## Notes
 
 - This project is intentionally tenant-scoped. Tokens carry both `tenant_id` and `user_id` claims.
-- The agent query path records `classify_intent`, `vector_search`, and `generate_report`; the configured five-iteration cap remains enforced even though dynamic tool selection is future work.
+- The current query path is a fixed classify, vector-search, and generation sequence with three recorded trace steps; it is not an iterative tool loop. `agent.max-iterations` is configured as 5 and clamped to at most 5, but is not used to drive this fixed sequence.
 - OpenRouter generation and comparison fall back to deterministic local responses when the API key is blank, a provider call fails, or its circuit breaker is open. Gemini embedding does not have an equivalent fallback, so ingestion requires a working Gemini key and endpoint.
 - Integration tests that use Testcontainers require a working Docker socket; when the daemon is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
-- The basic frontend has build and lint validation but no automated frontend tests yet; this remains a future enhancement.
+- The frontend provides a recent-query list and expandable trace explanations; focused component tests cover login and recent-trace behavior.

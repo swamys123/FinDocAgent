@@ -79,12 +79,28 @@ tasks.named('test') {
 }
 
 tasks.register('integrationTest', Test) {
-    description = 'Runs the PostgreSQL/Kafka integration tests.'
+    description = 'Runs the Docker-backed PostgreSQL/Kafka integration tests.'
     group = 'verification'
-    useJUnitPlatform()
+    useJUnitPlatform {
+        includeTags 'integration'
+    }
     testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
     include '**/integration/**'
+}
+
+tasks.register('correctnessTest', Test) {
+    description = 'Runs the distributed-systems correctness tests (Testcontainers).'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'correctness'
+    }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        exceptionFormat 'full'
+    }
 }
 
 tasks.register('localIntegrationTest', Test) {

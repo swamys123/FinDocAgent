@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="021-create-idempotency-keys" author="copilot">
+        <createTable tableName="idempotency_keys">
+            <column name="tenant_id" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_idempotency_keys"
+                             foreignKeyName="fk_idempotency_keys_tenant" references="tenants(id)"/>
+            </column>
+            <column name="idempotency_key" type="VARCHAR(255)">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="pk_idempotency_keys"/>
+            </column>
+            <column name="request_fingerprint" type="CHAR(64)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="response_status" type="SMALLINT"/>
+            <column name="response_body" type="JSONB"/>
+            <column name="created_at" type="TIMESTAMP" defaultValueComputed="CURRENT_TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+            <column name="expires_at" type="TIMESTAMP">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <sql>
+            ALTER TABLE idempotency_keys
+                ADD CONSTRAINT ck_idempotency_response_complete
+                CHECK ((response_status IS NULL) = (response_body IS NULL));
+            CREATE INDEX idx_idempotency_keys_expiry ON idempotency_keys (expires_at);
+        </sql>
+        <rollback>
+            <sql>DROP INDEX IF EXISTS idx_idempotency_keys_expiry; DROP TABLE IF EXISTS idempotency_keys;</sql>
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

@@ -24,10 +24,10 @@ public class JwtService {
         this.expirySeconds = expirySeconds;
     }
 
-    public String issue(UUID tenantId, UUID userId, String username) {
+    public String issue(UUID tenantId, UUID userId, String username, String role) {
         Instant now = Instant.now();
         return Jwts.builder().subject(username).claim("tenant_id", tenantId.toString())
-            .claim("user_id", userId.toString()).issuedAt(Date.from(now))
+            .claim("user_id", userId.toString()).claim("role", role).issuedAt(Date.from(now))
             .expiration(Date.from(now.plusSeconds(expirySeconds))).signWith(key).compact();
     }
 

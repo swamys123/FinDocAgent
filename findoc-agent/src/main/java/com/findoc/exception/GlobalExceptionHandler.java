@@ -2,8 +2,10 @@ package com.findoc.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.findoc.service.idempotency.IdempotencyKeyConflictException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -13,4 +15,6 @@ public class GlobalExceptionHandler {
     ProblemDetail badRequest(Exception ex) { return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage()); }
     @ExceptionHandler(org.springframework.security.authentication.BadCredentialsException.class)
     ProblemDetail unauthorized(Exception ex) { return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage()); }
+    @ExceptionHandler(IdempotencyKeyConflictException.class)
+    ProblemDetail idempotencyConflict(Exception ex) { return ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage()); }
 }

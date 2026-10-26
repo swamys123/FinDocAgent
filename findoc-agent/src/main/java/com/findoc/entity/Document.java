@@ -34,6 +34,9 @@ public class Document {
     @Column(name = "file_type", nullable = false, length = 50)
     private String fileType;
 
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
     @Column(name = "source_path", length = 1000)
     private String sourcePath;
 
@@ -63,10 +66,15 @@ public class Document {
     }
 
     public Document(Tenant tenant, User user, String filename, String fileType) {
+        this(tenant, user, filename, fileType, null);
+    }
+
+    public Document(Tenant tenant, User user, String filename, String fileType, String contentHash) {
         this.tenant = tenant;
         this.user = user;
         this.filename = filename;
         this.fileType = fileType;
+        this.contentHash = contentHash;
         this.createdAt = Instant.now();
         this.updatedAt = Instant.now();
     }
@@ -104,6 +112,10 @@ public class Document {
 
     public String getFileType() {
         return fileType;
+    }
+
+    public String getContentHash() {
+        return contentHash;
     }
 
     public String getSourcePath() {
