@@ -1,6 +1,6 @@
 # FinDocAgent
 
-FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial documents, retrieving relevant content, and producing grounded responses with source citations. It is built with Spring Boot, PostgreSQL with pgvector, Apache Kafka, and pluggable LLM providers.
+FinDocAgent is a tenant-aware RAG backend for ingesting financial documents, retrieving relevant content, and generating grounded responses with source citations. It is built with Spring Boot, PostgreSQL with pgvector, Apache Kafka, Gemini embeddings, and OpenRouter generation.
 
 [![Watch the FinDocAgent demo](screens/FinDocRefinedQuery.png)](https://youtu.be/Wnl3h9jDs8c)
 
@@ -17,7 +17,7 @@ The feature set is deliberately shaped around the lifecycle of a financial docum
 - **Tenant-safe semantic search:** Gemini embeddings and PostgreSQL/pgvector cosine retrieval filter by tenant and selected documents, returning five sources by default. This keeps relevance useful without weakening authorization.
 - **Inspectable query flow:** Queries use a fixed classify, retrieve, and generate pipeline with tenant-scoped session history, structured citations, and recorded stage traces.
 - **Evidence-based comparison:** Comparison retrieves evidence independently for each requested document, reducing the risk that one document silently dominates the result.
-- **Provider resilience:** Gemini handles embeddings while OpenRouter handles generation, with response validation, circuit breakers, and local fallback behavior for generation failures. Provider responsibilities stay explicit and replaceable.
+- **Provider resilience:** Gemini handles embeddings while OpenRouter handles generation, with response validation, circuit breakers, and local fallback behavior for generation failures. Provider roles and configuration are explicit.
 - **Operational foundations:** Liquibase migrations, seeded local demo data, request logging with trace context, generated OpenAPI documentation with Swagger UI, tenant-scoped HTTP idempotency keys for uploads/queries/comparisons, and role-gated tenant-admin DLQ replay support the core workflow.
 
 ## Architecture
