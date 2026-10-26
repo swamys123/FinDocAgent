@@ -5,9 +5,11 @@ import type { AgentTraceResponse, QueryTraceSummary } from '../types/api';
 
 export function TracesPage() {
   const { token } = useAuth();
-  const [traces, setTraces] = useState<QueryTraceSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [traceResult, setTraceResult] = useState<{
+    token: string;
+    traces: QueryTraceSummary[];
+    error: string | null;
+  } | null>(null);
 
   const [expandedQueryId, setExpandedQueryId] = useState<string | null>(null);
   const [traceDetails, setTraceDetails] = useState<Record<string, AgentTraceResponse>>({});
@@ -16,13 +18,33 @@ export function TracesPage() {
 
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
+
+    let isCurrentRequest = true;
     listRecentTraces(token)
-      .then(setTraces)
-      .catch(() => setError('Failed to load recent queries. Please try again.'))
-      .finally(() => setLoading(false));
+      .then((traces) => {
+        if (isCurrentRequest) {
+          setTraceResult({ token, traces, error: null });
+        }
+      })
+      .catch(() => {
+        if (isCurrentRequest) {
+          setTraceResult({
+            token,
+            traces: [],
+            error: 'Failed to load recent queries. Please try again.',
+          });
+        }
+      });
+
+    return () => {
+      isCurrentRequest = false;
+    };
   }, [token]);
+
+  const currentResult = traceResult?.token === token ? traceResult : null;
+  const traces = currentResult?.traces ?? [];
+  const loading = Boolean(token && !currentResult);
+  const error = currentResult?.error ?? null;
 
   async function toggleExpand(queryId: string) {
     if (expandedQueryId === queryId) {
