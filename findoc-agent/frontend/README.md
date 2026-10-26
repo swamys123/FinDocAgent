@@ -1,88 +1,24 @@
 # FinDocAgent Frontend (React + TypeScript)
 
-Vite/React UI for login, document upload and status, document selection, and cited agent queries. For the full-stack setup, see the root [Quick Start](../../README.md#quick-start-run-everything-with-docker-compose).
+The frontend supports login, document upload and status tracking, document selection, session-aware cited queries, and recent-query trace explanations. Session-history browsing and document comparison are available through the backend API but do not have frontend screens.
+
+For the full-stack setup, see the root [Quick Start](../../README.md#quick-start-run-everything-with-docker-compose).
 
 ## Run Locally
 
 ```bash
-npm install
-npm run dev      # dev server
-npm run build    # type-check and build
+npm ci
+npm run dev
+```
+
+The development server listens on `http://localhost:5173`. The frontend expects the backend at `http://localhost:8080` by default; set `VITE_API_BASE_URL` in a local `.env` file if the backend uses another address.
+
+## Validate
+
+```bash
+npm test
+npm run build
 npm run lint
 ```
 
-## Vite Template Notes
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
-
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
+`npm test` runs the Vitest component tests for login and recent-query trace flows. See the [backend README](../README.md) for backend setup and the root [Quick Start](../../README.md#quick-start-run-everything-with-docker-compose) for the full-stack Docker Compose setup.

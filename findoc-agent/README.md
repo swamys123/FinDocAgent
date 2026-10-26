@@ -51,7 +51,7 @@ Swagger UI documents the authentication, document, and agent APIs. Use its **Aut
 
 ## Frontend
 
-The basic React frontend provides login, document upload/list/status polling/delete, document selection, and session-aware agent queries. Session history, document comparison, and query explanation remain backend API workflows.
+The React frontend provides login, document upload/list/status polling/delete, document selection, session-aware agent queries, and recent-query trace explanations. Direct session-history browsing and document comparison remain backend API workflows without dedicated frontend screens.
 
 From `frontend/`:
 
