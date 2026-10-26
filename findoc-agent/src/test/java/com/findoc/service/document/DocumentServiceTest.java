@@ -6,6 +6,7 @@ import com.findoc.entity.Tenant;
 import com.findoc.entity.User;
 import com.findoc.messaging.IngestionOutbox;
 import com.findoc.repository.DocumentChunkRepository;
+import com.findoc.repository.DocumentDeduplicationRepository;
 import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.repository.UserRepository;
@@ -29,12 +30,14 @@ class DocumentServiceTest {
     private final DocumentSourceRepository documentSourceRepository = mock(DocumentSourceRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final IngestionOutbox ingestionOutbox = mock(IngestionOutbox.class);
+    private final DocumentDeduplicationRepository deduplicationRepository = mock(DocumentDeduplicationRepository.class);
     private final DocumentService service = new DocumentService(
         documentRepository,
         documentChunkRepository,
         documentSourceRepository,
         userRepository,
-        ingestionOutbox
+        ingestionOutbox,
+        deduplicationRepository
     );
 
     @Test

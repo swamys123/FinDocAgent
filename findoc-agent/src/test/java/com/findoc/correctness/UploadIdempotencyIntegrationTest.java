@@ -225,6 +225,55 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
         assertThat(documentCount(account)).as("live documents after two concurrent identical uploads").isEqualTo(1);
     }
 
+    @Test
+    void identicalContentIsDeduplicatedWithinTenantOnly() throws Exception {
+        Account firstAccount = newAccount();
+        Account secondAccount = newAccount();
+        byte[] content = words(unique("tenant-content"), 40).getBytes();
+
+        UUID first = postUpload(firstAccount, null, "report.txt", content).documentId;
+        UUID second = postUpload(secondAccount, null, "report.txt", content).documentId;
+
+        assertThat(second).isNotEqualTo(first);
+        assertThat(documentCount(firstAccount)).isEqualTo(1);
+        assertThat(documentCount(secondAccount)).isEqualTo(1);
+    }
+
+    @Test
+    void softDeletedContentCanBeUploadedAgain() throws Exception {
+        Account account = newAccount();
+        byte[] content = words(unique("deleted-content"), 40).getBytes();
+
+        UUID first = postUpload(account, null, "report.txt", content).documentId;
+        jdbc.update("update documents set deleted_at = current_timestamp where id = ? and tenant_id = ?",
+            first, account.tenant().getId());
+
+        UploadResult replacement = postUpload(account, null, "report.txt", content);
+
+        assertThat(replacement.documentId).isNotEqualTo(first);
+        assertThat(replacement.duplicate).isFalse();
+        assertThat(documentCount(account)).isEqualTo(1);
+    }
+
+    @Test
+    void duplicateUploadRequeuesFailedDocument() throws Exception {
+        Account account = newAccount();
+        byte[] content = words(unique("failed-content"), 40).getBytes();
+        UUID first = postUpload(account, null, "report.txt", content).documentId;
+        jdbc.update("update documents set status = 'FAILED', error_msg = 'test failure' where id = ? and tenant_id = ?",
+            first, account.tenant().getId());
+
+        UploadResult duplicate = postUpload(account, null, "report.txt", content);
+
+        assertThat(duplicate.documentId).isEqualTo(first);
+        assertThat(duplicate.duplicate).isTrue();
+        assertThat(duplicate.status).isEqualTo(HttpStatus.ACCEPTED.value());
+        assertThat(jdbc.queryForObject("select status from documents where id = ? and tenant_id = ?",
+            String.class, first, account.tenant().getId())).isIn("PENDING", "PROCESSING", "READY");
+        assertThat(jdbc.queryForObject("select error_msg from documents where id = ? and tenant_id = ?",
+            String.class, first, account.tenant().getId())).isNull();
+    }
+
     /** Audit 4 c, timeline 3: the same file uploaded again a day later must resolve to the existing document. */
     @Test
     void sameContentReuploadedLaterReturnsExistingDocumentWithoutNewIngestion() throws Exception {
@@ -234,22 +283,27 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
         UUID first = postUpload(account, null, "report.txt", content).documentId;
         jdbc.update("update documents set created_at = now() - interval '1 day' where id = ?", first);
         Mockito.clearInvocations(ingestionProducer);
-        UUID again = postUpload(account, null, "report.txt", content).documentId;
+        UploadResult duplicate = postUpload(account, null, "report.txt", content);
 
-        assertThat(again).as("same tenant and same content hash").isEqualTo(first);
+        assertThat(duplicate.documentId).as("same tenant and same content hash").isEqualTo(first);
+        assertThat(duplicate.duplicate).isTrue();
         assertThat(documentCount(account)).isEqualTo(1);
         Mockito.verify(ingestionProducer, Mockito.never()).publish(Mockito.any());
     }
 
-    /** Audit 4 b: a SHA-256 (or equivalent) is not stored per document. */
+    /** Audit 4 b: uploads persist a SHA-256 content hash on the document. */
     @Test
-    void contentHashIsStoredPerDocument() {
-        List<String> columns = jdbc.queryForList(
-            "select column_name from information_schema.columns where table_name = 'documents' "
-                + "and (column_name like '%hash%' or column_name like '%sha%' or column_name like '%checksum%')",
-            String.class);
+    void contentHashIsStoredPerDocument() throws Exception {
+        Account account = newAccount();
+        byte[] content = words(unique("hash"), 40).getBytes();
+        UUID documentId = postUpload(account, null, "hash.txt", content).documentId;
+        String storedHash = jdbc.queryForObject(
+            "select content_hash from documents where id = ? and tenant_id = ?",
+            String.class, documentId, account.tenant().getId());
+        String expectedHash = java.util.HexFormat.of().formatHex(
+            java.security.MessageDigest.getInstance("SHA-256").digest(content));
 
-        assertThat(columns).as("documents must carry a content hash column").isNotEmpty();
+        assertThat(storedHash).isEqualTo(expectedHash);
     }
 
     /** Audit 4 b: no (tenant_id, content_hash) uniqueness exists to arbitrate races between concurrent uploads. */
@@ -290,10 +344,11 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
 
         List<DocumentChunk> hits = chunkRepository.searchSimilar(vector(), account.tenant().getId(), 10);
         long distinctContents = hits.stream().map(DocumentChunk::getContent).distinct().count();
-        assertThat(hits).as("retrieval hits for one logical document").hasSize((int) distinctContents);
+        assertThat(documentCount(account)).isEqualTo(1);
+        assertThat(hits).as("retrieval hits for one logical document").isNotEmpty().hasSize((int) distinctContents);
     }
 
-    private record UploadResult(int status, UUID documentId, boolean replayed) {}
+    private record UploadResult(int status, UUID documentId, boolean replayed, boolean duplicate) {}
 
     private UploadResult postUpload(Account account, String idempotencyKey, String filename, byte[] content) throws Exception {
         TenantContext.set(account.tenant().getId(), account.user().getId());
@@ -317,7 +372,8 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
         return new UploadResult(
             result.getResponse().getStatus(),
             id,
-            Boolean.parseBoolean(result.getResponse().getHeader("Idempotent-Replayed")));
+            Boolean.parseBoolean(result.getResponse().getHeader("Idempotent-Replayed")),
+            !body.isBlank() && json.readTree(body).path("duplicate").asBoolean());
     }
 
     private int documentCount(Account account) {
@@ -328,8 +384,10 @@ class UploadIdempotencyIntegrationTest extends SharedPipelineTestSupport {
     private void awaitAllTerminal(Account account) {
         Awaitility.await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(500)).untilAsserted(() ->
             assertThat(jdbc.queryForObject(
-                "select count(*) from documents where tenant_id = ? and deleted_at is null and status in ('PENDING','PROCESSING')",
-                Integer.class, account.tenant().getId())).isZero());
+                "select count(*) from documents where tenant_id = ? and deleted_at is null and status <> 'READY'",
+                Integer.class, account.tenant().getId()))
+                .as("all documents in a successful upload scenario must reach READY")
+                .isZero());
     }
 
     private static String unique(String prefix) {

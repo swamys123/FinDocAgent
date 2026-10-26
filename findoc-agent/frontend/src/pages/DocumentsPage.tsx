@@ -7,12 +7,18 @@ import { useSelection } from '../hooks/useSelection';
 const POLL_INTERVAL_MS = 3000;
 const ACTIVE_STATUSES = new Set(['PENDING', 'PROCESSING']);
 
+interface UploadAttempt {
+  file: File;
+  idempotencyKey: string;
+}
+
 export function DocumentsPage() {
   const { token } = useAuth();
   const { selectedDocumentIds, toggleDocument } = useSelection();
   const [documents, setDocuments] = useState<DocumentResponse[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState<UploadAttempt | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refreshDocuments = useCallback(async () => {
@@ -52,16 +58,24 @@ export function DocumentsPage() {
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file || !token) return;
+    const attempt = { file, idempotencyKey: crypto.randomUUID() };
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    await submitUpload(attempt);
+  }
+
+  async function submitUpload(attempt: UploadAttempt) {
+    if (!token) return;
     setUploading(true);
     setError(null);
+    setRetryAttempt(attempt);
     try {
-      await uploadDocument(token, file);
+      await uploadDocument(token, attempt.file, attempt.idempotencyKey);
       await refreshDocuments();
+      setRetryAttempt(null);
     } catch {
-      setError('Upload failed. Please try again.');
+      setError('Upload failed. You can retry this file safely.');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -93,6 +107,15 @@ export function DocumentsPage() {
           className="sr-only"
         />
         {uploading && <span className="text-sm text-gray-500">Uploading...</span>}
+        {retryAttempt && !uploading && (
+          <button
+            type="button"
+            onClick={() => void submitUpload(retryAttempt)}
+            className="rounded-md border border-blue-600 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+          >
+            Retry {retryAttempt.file.name}
+          </button>
+        )}
       </div>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}

@@ -9,12 +9,13 @@ export function getDocumentStatus(token: string, documentId: string): Promise<Do
   return apiRequest<DocumentResponse>(`/api/v1/documents/${documentId}/status`, { token });
 }
 
-export function uploadDocument(token: string, file: File): Promise<DocumentResponse> {
+export function uploadDocument(token: string, file: File, idempotencyKey: string): Promise<DocumentResponse> {
   const formData = new FormData();
   formData.append('file', file);
   return apiRequest<DocumentResponse>('/api/v1/documents/upload', {
     method: 'POST',
     token,
+    headers: { 'Idempotency-Key': idempotencyKey },
     body: formData,
   });
 }

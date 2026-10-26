@@ -10,6 +10,7 @@ import com.findoc.repository.DocumentRepository;
 import com.findoc.repository.DocumentChunkRepository;
 import com.findoc.repository.DocumentSourceRepository;
 import com.findoc.repository.UserRepository;
+import com.findoc.repository.DocumentDeduplicationRepository;
 import com.findoc.messaging.IngestionJob;
 import com.findoc.util.TenantContext;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -32,17 +36,20 @@ public class DocumentService {
     private final DocumentSourceRepository documentSourceRepository;
     private final UserRepository userRepository;
     private final IngestionOutbox ingestionOutbox;
+    private final DocumentDeduplicationRepository deduplicationRepository;
 
     public DocumentService(DocumentRepository documentRepository,
                           DocumentChunkRepository documentChunkRepository,
                           DocumentSourceRepository documentSourceRepository,
                           UserRepository userRepository,
-                          IngestionOutbox ingestionOutbox) {
+                          IngestionOutbox ingestionOutbox,
+                          DocumentDeduplicationRepository deduplicationRepository) {
         this.documentRepository = documentRepository;
         this.documentChunkRepository = documentChunkRepository;
         this.documentSourceRepository = documentSourceRepository;
         this.userRepository = userRepository;
         this.ingestionOutbox = ingestionOutbox;
+        this.deduplicationRepository = deduplicationRepository;
     }
 
     @Transactional
@@ -63,12 +70,29 @@ public class DocumentService {
         User user = userRepository.findByIdAndTenantIdAndDeletedAtIsNull(TenantContext.userId(), TenantContext.tenantId())
             .orElseThrow(() -> new NoSuchElementException("User not found"));
 
-        Document document = new Document(user.getTenant(), user, file.getOriginalFilename(), type);
+        UUID tenantId = TenantContext.tenantId();
+        String contentHash = sha256(content);
+        deduplicationRepository.lock(tenantId, contentHash);
+        var duplicate = documentRepository.findByTenantIdAndContentHashAndDeletedAtIsNull(tenantId, contentHash);
+        if (duplicate.isPresent()) {
+            Document existing = duplicate.get();
+            String status = existing.getStatus().name();
+            String errorMessage = existing.getErrorMessage();
+            if (documentRepository.queueFailedDocumentForReplay(existing.getId(), tenantId) == 1) {
+                ingestionOutbox.enqueue(new IngestionJob(existing.getId(), tenantId, existing.getUser().getId()));
+                status = Document.Status.PENDING.name();
+                errorMessage = null;
+            }
+            return new DocumentResponse(existing.getId(), existing.getFilename(), existing.getFileType(), status,
+                chunkCount(existing.getId()), existing.getCreatedAt(), true, errorMessage);
+        }
+
+        Document document = new Document(user.getTenant(), user, file.getOriginalFilename(), type, contentHash);
         Document saved = documentRepository.save(document);
         documentSourceRepository.save(new DocumentSource(saved, user.getTenant(), content));
-        IngestionJob job = new IngestionJob(saved.getId(), TenantContext.tenantId(), TenantContext.userId());
+        IngestionJob job = new IngestionJob(saved.getId(), tenantId, TenantContext.userId());
         ingestionOutbox.enqueue(job);
-        return response(saved, saved.getStatus().name(), 0);
+        return response(saved, saved.getStatus().name(), 0, false);
     }
 
     @Transactional(readOnly = true)
@@ -120,7 +144,20 @@ public class DocumentService {
     }
 
     private DocumentResponse response(Document document, String status, int chunkCount) {
-        return new DocumentResponse(document.getId(), document.getFilename(), document.getFileType(), status, chunkCount, document.getCreatedAt());
+        return response(document, status, chunkCount, false);
+    }
+
+    private DocumentResponse response(Document document, String status, int chunkCount, boolean duplicate) {
+        return new DocumentResponse(document.getId(), document.getFilename(), document.getFileType(), status,
+            chunkCount, document.getCreatedAt(), duplicate, document.getErrorMessage());
+    }
+
+    private String sha256(byte[] content) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 
 }

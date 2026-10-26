@@ -14,6 +14,8 @@ export interface DocumentResponse {
   status: DocumentStatus;
   chunkCount: number;
   createdAt: string;
+  duplicate: boolean;
+  errorMessage: string | null;
 }
 
 export interface AgentSourceResponse {
@@ -58,4 +60,3 @@ export interface AgentTraceResponse {
   fullTrace: AgentTraceStep[];
   totalDurationMs: number;
 }
-

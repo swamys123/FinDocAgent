@@ -107,6 +107,11 @@ public class IngestionService {
         }
     }
 
+    public int retryCount(IngestionJob job) {
+        return documentRepository.findRetryCount(job.documentId(), job.tenantId())
+            .orElseThrow(() -> new IllegalStateException("Document not found for tenant while reading retry count"));
+    }
+
     private String vectorLiteral(float[] embedding) {
         StringJoiner values = new StringJoiner(",", "[", "]");
         for (float value : embedding) {
