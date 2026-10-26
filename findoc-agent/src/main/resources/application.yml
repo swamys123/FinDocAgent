@@ -74,6 +74,9 @@ findoc:
       multiplier: ${FINDOC_INGESTION_RETRY_MULTIPLIER:2.0}
       max-interval-ms: ${FINDOC_INGESTION_RETRY_MAX_INTERVAL_MS:10000}
       max-retries: ${FINDOC_INGESTION_RETRY_MAX_RETRIES:2}
+    dlq-partitions: ${FINDOC_INGESTION_DLQ_PARTITIONS:3}
+    dlq-replication-factor: ${FINDOC_INGESTION_DLQ_REPLICATION_FACTOR:1}
+    dlq-retention-ms: ${FINDOC_INGESTION_DLQ_RETENTION_MS:604800000}
     outbox:
       poll-interval-ms: ${FINDOC_INGESTION_OUTBOX_POLL_INTERVAL_MS:1000}
       batch-size: ${FINDOC_INGESTION_OUTBOX_BATCH_SIZE:20}
@@ -87,4 +90,4 @@ logging:
     name: ${LOG_FILE:findoc-agent.log}
 
 management:
-  endpoints.web.exposure.include: health,info
+  endpoints.web.exposure.include: health,info,metrics

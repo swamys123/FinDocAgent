@@ -9,6 +9,7 @@ import com.findoc.service.document.DlqReplayService;
 import com.findoc.util.TenantContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.common.header.Header;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -22,7 +23,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -63,7 +63,7 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         return stored;
     }
 
-    /** Audit 3 (a2): the retry count is never put on the DLQ record, so a replayer cannot cap replays. */
+    /** Audit 3 (a2): delivery attempts are carried on the DLQ record for bounded replay. */
     @Test
     void deadLetteredMessageCarriesRetryCountHeader() {
         StoredDocument stored = exhaustRetries();
@@ -71,10 +71,10 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         ConsumerRecord<String, String> record = DeadLetterTopicReader.read(KAFKA.getBootstrapServers(), DLQ_TOPIC).stream()
             .filter(candidate -> stored.id().toString().equals(candidate.key()))
             .findFirst().orElseThrow();
-        List<String> headerNames = StreamSupport.stream(record.headers().spliterator(), false)
-            .map(header -> header.key().toLowerCase(Locale.ROOT)).toList();
-
-        assertThat(headerNames).as("DLQ headers: %s", headerNames).anyMatch(name -> name.contains("retry"));
+        Header retryCountHeader = record.headers().lastHeader("findoc-retry-count");
+        assertThat(retryCountHeader).as("DLQ retry-count header").isNotNull();
+        assertThat(new String(retryCountHeader.value(), java.nio.charset.StandardCharsets.UTF_8))
+            .isEqualTo(Integer.toString(EXPECTED_ATTEMPTS));
     }
 
     /** Audit 3 (b1): retry_count records each delivery attempt, not only final recovery. */
@@ -87,20 +87,15 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         assertThat(retryCount).isEqualTo(EXPECTED_ATTEMPTS);
     }
 
-    /** Audit 3 (e3): actuator exposes only health,info and nothing counts or logs dead-lettered jobs. */
+    /** Audit 3 (e3): a published dead-letter event increments the DLQ counter. */
     @Test
     void deadLetteringIsObservableThroughAMetric() {
         exhaustRetries();
 
-        assertThat(meterRegistry.getMeters())
-            .as("a counter/gauge for dead-lettered jobs or DLQ depth")
-            .anyMatch(meter -> {
-                String name = meter.getId().getName().toLowerCase(Locale.ROOT);
-                return name.contains("dlq") || name.contains("dead");
-            });
+        assertThat(meterRegistry.get("findoc.ingestion.dlq.published").counter().count()).isGreaterThanOrEqualTo(1);
     }
 
-    /** Audit 3 (f1): error_msg is stored but DocumentResponse has no field for it. */
+    /** Audit 3 (f1): a tenant-scoped status response exposes the failure reason. */
     @Test
     void ownerCanSeeWhyTheirDocumentFailed() throws Exception {
         StoredDocument stored = exhaustRetries();
@@ -114,17 +109,14 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         }
 
         assertThat(json.get("status").asText()).isEqualTo("FAILED");
-        boolean hasReason = StreamSupport.stream(((Iterable<String>) json::fieldNames).spliterator(), false)
-            .filter(name -> name.toLowerCase(Locale.ROOT).matches(".*(error|failure|reason).*"))
-            .anyMatch(name -> !json.get(name).asText("").isBlank());
-        assertThat(hasReason).as("status response has a failure reason field: %s", json).isTrue();
+        assertThat(json.get("errorMessage").asText()).isEqualTo("embedding-provider-down");
     }
 
     /** Audit 3 (c, f2): replay the failed job through the transactional outbox without changing its tenant or owner. */
     @Test
     void adminReplayPreservesTenantAndOwnerAndReingestsDocument() throws Exception {
         StoredDocument stored = exhaustRetries();
-        Mockito.when(embeddingService.embed(Mockito.anyString())).thenReturn(vector());
+        Mockito.doReturn(vector()).when(embeddingService).embed(Mockito.anyString());
 
         dlqReplayService.replay(stored.id(), stored.account().tenant().getId());
 

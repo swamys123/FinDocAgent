@@ -18,6 +18,13 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
     @Query("select d from Document d where d.id = :id and d.tenant.id = :tenantId and d.deletedAt is null")
     Optional<Document> findByIdAndTenantIdAndDeletedAtIsNull(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
 
+    @Query("""
+        select d from Document d
+        where d.tenant.id = :tenantId and d.contentHash = :contentHash and d.deletedAt is null
+        """)
+    Optional<Document> findByTenantIdAndContentHashAndDeletedAtIsNull(
+        @Param("tenantId") UUID tenantId, @Param("contentHash") String contentHash);
+
     @Modifying
     @Query(value = """
         update documents
@@ -32,6 +39,12 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
         where id = :id and tenant_id = :tenantId and deleted_at is null
         """, nativeQuery = true)
     Optional<String> findCurrentStatus(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
+    @Query(value = """
+        select retry_count from documents
+        where id = :id and tenant_id = :tenantId
+        """, nativeQuery = true)
+    Optional<Integer> findRetryCount(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(value = """

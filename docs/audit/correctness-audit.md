@@ -83,41 +83,42 @@ Files: `messaging/KafkaConfiguration.java`, `messaging/KafkaIngestionConsumer.ja
 | # | Area | Finding | Verdict |
 |---|---|---|---|
 | a1 | DLQ payload | Original `IngestionJob(documentId, tenantId, userId)` JSON, same key; Spring default headers (original topic/partition/offset, exception fqcn/message/stacktrace) | SAFE (verified on the wire) |
-| a2 | Retry count | No retry-count header on the DLQ record; DLQ routing relies only on `ExponentialBackOffWithMaxRetries(2)` | UNSAFE |
+| a2 | Retry count | The DLQ record includes `findoc-retry-count`, populated from the tenant-scoped persisted delivery count; the contract test checks its value is 3 for the configured 3 attempts. | SAFE |
 | a3 | Tenant on replay | Payload has `tenantId`+`userId`; `ingest()` loads by `(id, tenantId)` and checks owner. Message itself is unsigned | SAFE (Low risk) |
 | b1 | Status on exhaustion | Each failed ingestion delivery increments `retry_count`; the final recovery moves `PENDING` to `FAILED` without double-counting. The regression test confirms the configured three delivery attempts. | SAFE |
-| b2 | Atomicity | FAILED is committed in the destination resolver *before* the DLQ send; no outbox/transaction links them | UNSAFE |
-| b3 | DLQ publish fails | Redelivery calls `recordFailure` on an already-`FAILED` document → `IllegalStateException` every time; the job can never be dead-lettered and blocks its partition (38 such exceptions logged in the test run) | UNSAFE |
-| b5 | Poison pill | Covered by Audit 2 (h) | UNSAFE |
+| b2 | Atomicity | The recoverer waits for the DLQ send result and only then marks the tenant-scoped document `FAILED`; a failed send leaves the source record eligible for retry. | SAFE (at-least-once; duplicate DLQ records remain possible across a crash after send) |
+| b3 | DLQ publish fails | Failed DLQ publication propagates to the error handler without committing the source offset or finalizing the document; the recovery test verifies a subsequent publish succeeds. | SAFE (verified for transient failure) |
+| b5 | Poison pill | Covered by Audit 2 (h); the error-handling deserializer routes malformed payloads to the DLQ and allows later valid records to proceed. | SAFE |
 | c | Replay mechanism | `POST /api/v1/admin/dlq/{documentId}/replay` identifies the message by document UUID, requires a tenant `ADMIN`, scopes the document lookup to the JWT tenant, and atomically transitions `FAILED` to `PENDING` with one transactional outbox event. A repeated call while `PENDING` is a no-op; `PROCESSING`/`READY` return 409. | SAFE |
 | d | Republish to ingestion topic | Replay uses the transactional outbox and original document owner/tenant; conditional status transition prevents duplicate events. `READY` and active `PROCESSING` documents cannot be replayed; the existing consumer acknowledges a `READY` delivery as a no-op. | SAFE |
-| e1 | Topic config | DLQ not declared anywhere (no `NewTopic`); partitions/replication/retention unmanaged. Auto-created DLQ has broker defaults | UNSAFE |
+| e1 | Topic config | A `NewTopic` bean provisions the DLQ with configurable partition count, replication factor, and explicit retention (`findoc.ingestion.dlq-*` settings; defaults: 3, 1, 7 days). The Testcontainers check verifies partitions and topic-level retention. | SAFE (configuration verified; production broker permissions and effective settings remain environment-dependent) |
 | e2 | Partition coupling | DLQ resolver returns `record.partition()`, but spring-kafka falls back to broker partitioning when the DLQ has fewer partitions. A job from partition 2 of a 3-partition source was dead-lettered to a 1-partition DLQ | SAFE (disproved by experiment) |
-| e3 | Observability | Actuator exposes only `health,info`; no DLQ metric (no meter name contains `dlq`/`dead`), no alert | UNSAFE |
-| f1 | Failure reason visible | `error_msg` stored but `DocumentResponse` has no field for it | UNSAFE |
+| e3 | Observability | Successful DLQ publishes increment `findoc.ingestion.dlq.published`; Actuator exposes the `metrics` endpoint in addition to health/info. | SAFE (metric registration/increment tested; alerting is deployment configuration) |
+| f1 | Failure reason visible | The tenant-scoped `DocumentResponse` includes the underlying failure reason as `errorMessage`. | SAFE |
 | f2 | Admin re-trigger | Authorized tenant admins can re-trigger a failed job by document UUID; owner identity and tenant are copied from the stored document, not supplied by the caller. | SAFE |
 
-Not testable from code: broker-side DLQ replication factor and retention in production (UNKNOWN; e1 test covers the
-declaration gap only).
+Not testable from code: production broker authorization, effective replication factor, retention overrides, and alert
+configuration (UNKNOWN; application topic declaration and retention behavior are verified with Testcontainers).
 
 ## Audit 4 – What happens when the same upload is submitted twice?
 
-There is **no dedupe of any kind**: every `POST /api/v1/documents/upload` creates a new document, a new source blob
-and a new Kafka job.
+The original baseline had no upload deduplication. The current implementation combines tenant-scoped HTTP
+idempotency keys with tenant-scoped SHA-256 content deduplication. Identical active content resolves to its existing
+document; a failed existing document is queued for retry, and a soft-deleted one does not block a replacement.
 
 | # | Area | Finding | Evidence | Verdict |
 |---|---|---|---|---|
-| a1 | Idempotency-Key / client id | Controller takes only `@RequestParam("file")`; `TenantJwtFilter`/`MdcTraceFilter` do no dedupe; no interceptors | `DocumentController.java:30,36`, `SecurityConfig.java` | UNSAFE |
-| a2 | DB constraints | No uniqueness on `documents` (only `users(tenant_id, username)` and `document_sources.document_id`) | `db.changelog-001-init.xml`, `-003-ingestion.xml` | UNSAFE |
-| b | Content hash | No hash/size column; no `(tenant_id, content_hash)` or `(tenant_id, filename)` uniqueness | `Document.java`, changelogs | UNSAFE |
-| c1 | Timeout, retry, first succeeded | Retry creates a second document; the first commits regardless of the client | `DocumentService.upload` | UNSAFE |
-| c2 | Double click, concurrent | Two documents, two jobs; no lock or constraint | same | UNSAFE |
-| c3 | Same file a day later | Same result, indistinguishable from a legitimate re-upload | same | UNSAFE |
-| d | Frontend | Input `disabled={uploading}` (no auto-retry, no timeout, no list refresh after failure, generic "Upload failed. Please try again.", sends no key) | `DocumentsPage.tsx`, `documents.ts` | PARTIAL – no Java test (frontend) |
-| e1–e2 | Two documents / two ingestion runs | Confirmed | `DocumentService.upload`, `KafkaIngestionConsumer` | UNSAFE |
-| e3 | Double embedding calls | Confirmed: `embed()` per chunk, no cache or reuse | `IngestionService.java` | UNSAFE |
-| e4 | Duplicate retrieval and citations | Confirmed: `searchSimilar*` filter on tenant, `deleted_at`, document ids only; identical chunks tie on `<=>` | `DocumentChunkRepository.java` | UNSAFE |
-| f | Kafka redelivery of a READY doc | No re-embedding (`markProcessing()` rejects READY); noisy failure, covered by Audit 2 | `Document.java` | SAFE for this audit |
+| a1 | Idempotency-Key / request replay | Upload supports same-key/same-fingerprint response replay, different-fingerprint 422, and tenant isolation; frontend sends a stable key for a manual retry of the same selected file. | `DocumentController.java`, `IdempotencyExecutor`, `DocumentsPage.tsx`, `UploadIdempotencyIntegrationTest` | SAFE (frontend component behavior has no dedicated test runner) |
+| a2 | DB constraints | Partial unique index enforces one active `(tenant_id, content_hash)` row; an advisory transaction lock serializes same-tenant concurrent uploads before the duplicate lookup. | `db.changelog-009-document-content-hash.xml`, `DocumentDeduplicationRepository.java` | SAFE |
+| b | Content hash | Upload stores SHA-256 of source bytes; migration backfills existing source blobs and halts if existing active duplicates would violate the new index. | `Document.java`, `DocumentService.java`, changelog 009 | SAFE |
+| c1 | Timeout/retry after first success | Same key replays the original response; identical content without a key resolves to the existing document. | `UploadIdempotencyIntegrationTest` | SAFE |
+| c2 | Double click/concurrent | Concurrent identical content uploads result in one active document. | `UploadIdempotencyIntegrationTest.concurrentIdenticalUploadsCreateASingleDocument` | SAFE |
+| c3 | Same file re-uploaded later | Same-tenant active content returns the original document; soft-deleted content can create a replacement; a FAILED document is re-enqueued. | `UploadIdempotencyIntegrationTest` | SAFE |
+| d | Frontend | Manual retry retains the selected `File` and same idempotency key; choosing another file starts a new attempt/key. | `DocumentsPage.tsx`, `documents.ts` | IMPLEMENTED (scoped lint/type-check pass; no frontend test framework) |
+| e1–e2 | Duplicate documents / ingestion runs | Hash deduplication creates no second document/source/outbox event for an identical active upload. | `DocumentService.java`, correctness tests | SAFE |
+| e3 | Duplicate embedding calls | Duplicate upload integration test requires the document to reach READY and verifies exactly one matching embedding call. | `UploadIdempotencyIntegrationTest` | SAFE |
+| e4 | Duplicate retrieval and citations | Duplicate-upload retrieval test requires READY and non-empty results, then checks for unique chunk contents. | `UploadIdempotencyIntegrationTest` | SAFE |
+| f | Kafka redelivery of a READY doc | READY delivery is acknowledged as a no-op without re-embedding. | `IngestionIdempotencyIntegrationTest` | SAFE |
 
 Recommended behaviour:
 
@@ -131,10 +132,14 @@ Recommended behaviour:
 
 The Audit 4 tests are listed in their own table after the first one below.
 
-All 18 tests of Audits 1–3 assert the desired guarantee and **failed against the production code before fixes**
+The original 18 tests of Audits 1–3 assert the desired guarantee and **failed against the production code before fixes**
 (Audits 1–2: `10 tests completed, 10 failed`; Audit 3: 8 of 8 failed, see below). They are tagged `correctness`, named
 `*IntegrationTest` (so the unit `test` task excludes them), and run on Testcontainers
 (`pgvector/pgvector:pg16`, `confluentinc/cp-kafka:7.6.1`).
+
+Current verification: `correctnessTest` passed all 38 tests after the Audit 3/Audit 4 implementations and test-isolation
+fixes. The correctness fixtures reset their shared embedding mock before every test and close each class context after
+the class, preventing topic-specific listeners/mocks from leaking between classes.
 
 | Test (class) | Finding it proves | Observed failure before fixes |
 |---|---|---|
@@ -173,7 +178,10 @@ and a standalone `MockMvc` around the real `DocumentController`, with the shared
 | `duplicateUploadDoesNotEmbedTheSameContentTwice` | A4 e3: double Gemini embedding cost | `embed` called 2 times (wanted 1) |
 | `duplicateUploadDoesNotProduceDuplicateRetrievalResults` | A4 e4: duplicate hits, so duplicate citations | Hits contain identical chunk content twice |
 
-No test for A4 d (frontend behaviour); the frontend has no Java-reachable surface.
+No automated component-level test for A4 d (frontend behaviour); the repository does not currently have a frontend test framework.
+
+Additional regression cases now verify tenant isolation for content dedupe, soft-delete replacement, failed-document
+requeue, persisted SHA-256 values, successful embedding/retrieval, and exact retry metadata/recovery behavior.
 
 Not covered by a test (verdict SAFE): A3 a1, a3 and e2 (e2 was tested and disproved: the test passed, so it was removed), A1 timelines 1 and 4, consumer-before-commit, producer durability, and A2 timeline 1
 (crash mid-document, by code reading only). Not testable from code alone: effective ack mode (a) and production
@@ -190,14 +198,12 @@ a topic it wedges that consumer permanently and would make every other Kafka-bas
 
 ```bash
 cd findoc-agent
-./gradlew correctnessTest        # build.gradle: tag "correctness"; fails until the findings are fixed
+./gradlew correctnessTest        # build.gradle: tag "correctness"
 ```
 
 Docker Engine 29 rejects the Docker API version (1.32) hard-coded in Testcontainers 1.19.8
 (`client version 1.32 is too old`). Until Testcontainers is upgraded, run with
 `JAVA_TOOL_OPTIONS=-Dapi.version=1.44 ./gradlew correctnessTest`.
-
-When the audit tests were originally added, the only non-test file changed was `findoc-agent/build.gradle` (new `correctnessTest` task).
 
 ### Implementation update
 
@@ -209,8 +215,7 @@ Audit 2 is implemented: the partial live-chunk index and upsert, tenant-scoped a
 embedding calls outside transactions with durable staging, reuse of completed embeddings, explicit record-level
 acknowledgment, retry attempt tracking, stale-claim recovery through the transactional outbox, and error-handling
 deserialization for poison records. Liquibase halts on duplicate live chunks before index creation. Testcontainers
-integration tests cover these contracts, including crash-recovery scheduling and poison-message progress. Audit 3
-remains pending; Audit 3 finding b1 (accurate retry count) is also resolved by the shared failure transition.
+integration tests cover these contracts, including crash-recovery scheduling and poison-message progress.
 
 Audit 4's idempotency-key contract is implemented for `POST /api/v1/documents/upload`,
 `POST /api/v1/agent/query`, and `POST /api/v1/agent/compare`. The tenant/key primary key arbitrates concurrent
@@ -220,7 +225,10 @@ include the filename, content type, and bytes; JSON fingerprints include the end
 controller and Testcontainers coverage validates replay, mismatch rejection, tenant isolation, concurrent requests,
 expiry, and rollback of failed operations.
 
-The remaining Audit 4 work is content-hash deduplication (including a unique live-document index and duplicate
-retrieval/embedding coverage) and frontend use of idempotency keys when retry behavior is added. Audit 3 replay is
-implemented; retry/DLQ publish atomicity, failure recovery, provisioning, observability, and failure-reason visibility
-remain pending.
+Audit 3 now carries persisted retry counts in DLQ headers, waits for successful DLQ publication before finalizing the
+document, retries after transient publish failures, provisions the DLQ with configurable partitions/replication/
+retention, increments a published-job metric, exposes the metrics endpoint, and includes tenant-scoped failure reasons
+in document status responses. Audit 4 now stores/backfills SHA-256 hashes, prevents duplicate active content within a
+tenant, requeues failed duplicates, and sends a stable idempotency key for manual frontend retries. All 38 tagged
+correctness tests passed. Production Kafka configuration/permissions and frontend component-level tests remain
+environmental/coverage follow-ups rather than implementation failures.

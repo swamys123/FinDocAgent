@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.20.xsd">
+
+    <changeSet id="021-enable-pgcrypto-for-document-hashes" author="copilot">
+        <sql>CREATE EXTENSION IF NOT EXISTS pgcrypto</sql>
+    </changeSet>
+
+    <changeSet id="022-add-document-content-hash" author="copilot">
+        <addColumn tableName="documents">
+            <column name="content_hash" type="VARCHAR(64)"/>
+        </addColumn>
+        <sql>
+            UPDATE documents d
+            SET content_hash = encode(digest(s.content, 'sha256'), 'hex')
+            FROM document_sources s
+            WHERE s.document_id = d.id AND d.content_hash IS NULL
+        </sql>
+    </changeSet>
+
+    <changeSet id="023-index-live-documents-by-content-hash" author="copilot">
+        <preConditions onFail="HALT">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*)
+                FROM (
+                    SELECT tenant_id, content_hash
+                    FROM documents
+                    WHERE deleted_at IS NULL AND content_hash IS NOT NULL
+                    GROUP BY tenant_id, content_hash
+                    HAVING COUNT(*) &gt; 1
+                ) duplicates
+            </sqlCheck>
+        </preConditions>
+        <sql>
+            CREATE UNIQUE INDEX uq_documents_live_tenant_content_hash
+                ON documents (tenant_id, content_hash)
+                WHERE deleted_at IS NULL AND content_hash IS NOT NULL;
+        </sql>
+    </changeSet>
+</databaseChangeLog>

@@ -20,11 +20,13 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.test.mock.mockito.MockReset;
 import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -46,6 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @Tag("correctness")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @TestPropertySource(properties = {
     "spring.kafka.listener.auto-startup=true",
     "spring.kafka.listener.ack-mode=record",
@@ -90,7 +93,7 @@ abstract class CorrectnessTestSupport {
         registry.add("spring.kafka.bootstrap-servers", KAFKA::getBootstrapServers);
     }
 
-    @MockBean
+    @MockBean(reset = MockReset.NONE)
     EmbeddingService embeddingService;
 
     @SpyBean
@@ -119,7 +122,8 @@ abstract class CorrectnessTestSupport {
 
     @BeforeEach
     void stubEmbeddingAndAwaitListener() {
-        Mockito.when(embeddingService.embed(Mockito.anyString())).thenReturn(vector());
+        Mockito.reset(embeddingService);
+        Mockito.doReturn(vector()).when(embeddingService).embed(Mockito.anyString());
         Awaitility.await().atMost(Duration.ofSeconds(60))
             .untilAsserted(() -> assertThat(listenerRegistry.getListenerContainers())
                 .anySatisfy(container -> assertThat(container.getAssignedPartitions()).isNotEmpty()));
