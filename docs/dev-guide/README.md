@@ -7,7 +7,7 @@ The implementation is now beyond the initial scaffold and includes the main tena
 Previously recorded validation (not rerun during this documentation review):
 
 - `cd findoc-agent && ./gradlew test --console=plain` passed.
-- `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` passed against locally running PostgreSQL/pgvector and Kafka. Live provider tests in this task are skipped when their API keys are absent.
+- A prior `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` run passed against locally running PostgreSQL/pgvector and Kafka. The latest recorded attempt could not start because the configured `findoc-test-db` database did not exist. Live provider tests are skipped when their API keys are absent, once the test application context starts.
 - The Audit 1 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadPublishAtomicityIntegrationTest --console=plain` pass using Testcontainers.
 - The Audit 2 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
 - The Audit 4 idempotency-key cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
@@ -42,6 +42,7 @@ Current runtime caveats:
 
 - Java 17
 - PostgreSQL running locally on `localhost:5432`
+- Apache Kafka running locally on `localhost:9092`
 - Database name: `findoc`
 - Database user: `postgres`
 - Database password: `postgres`

@@ -63,6 +63,8 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 023 | [Test suite readiness and scope](story-023-test-suite-readiness.md) | Complete | Provision the local integration test database before running `localIntegrationTest`; production Kafka verification remains pending |
 
+| Story 024 | [README implementation fact check](story-024-readme-implementation-fact-check.md) | Complete | Verify production Kafka DLQ configuration and alerting |
+
 | Audit | [Distributed-systems correctness audit (1–4) and correctness tests](audit/correctness-audit.md) | Implemented; 38/38 correctness tests pass | Verify production-only configuration and add frontend component tests when tooling is selected |
 
 ## Priority Order

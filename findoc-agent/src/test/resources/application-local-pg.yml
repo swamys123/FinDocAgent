@@ -2,7 +2,7 @@ spring:
   datasource:
     url: ${TEST_DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${TEST_DB_NAME:findoc-test-db}}
     username: ${TEST_DB_USERNAME:${DB_USERNAME:postgres}}
-    password: ${TEST_DB_PASSWORD:${DB_PASSWORD:swamys123}}
+    password: ${TEST_DB_PASSWORD:${DB_PASSWORD:postgres}}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

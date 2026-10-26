@@ -65,12 +65,12 @@ The development server listens on `http://localhost:5173`. Set `VITE_API_BASE_UR
 
 ## Configuration and Limits
 
-Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, the local integration test database name, Gemini and OpenRouter provider settings, ingestion topic and retry settings, provider circuit-breaker settings, CORS, and rolling log configuration. Gradle loads the populated, Git-ignored `.env` into backend run and test processes without modifying `application.yml`.
+Use `.env.example` as the non-secret configuration reference. It includes database/Kafka settings, the local integration test database name, Gemini and OpenRouter provider settings, ingestion topic and retry settings, and rolling log configuration. Additional settings such as provider circuit-breaker thresholds and CORS origins can be supplied as environment variables; they are configured in `application.yml` but are not listed in `.env.example`. Gradle loads the populated, Git-ignored `.env` into backend run and test processes without modifying `application.yml`.
 
 - Uploads are limited to 20 MB.
-- Ingestion chunks use 512 tokens with a 50-token overlap.
+- Ingestion chunks contain up to 512 whitespace-delimited terms with a 50-term overlap; this is not model-tokenizer-based chunking.
 - Retrieval returns five sources by default.
-- The agent loop is capped at five iterations.
+- The query path is a fixed classify, retrieve, and generate sequence, not an iterative agent loop. `agent.max-iterations` defaults to five and is clamped to at most five, but does not drive the current query flow.
 - Ingestion retries use exponential backoff and route exhausted messages to `findoc.ingestion.dlq`.
 - OpenRouter generation and comparison have deterministic fallback behavior; Gemini embedding requires a working provider.
 
