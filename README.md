@@ -2,7 +2,7 @@
 
 FinDocAgent is a tenant-aware agentic RAG backend for ingesting financial documents, retrieving relevant content, and producing grounded responses with source citations. It is built with Spring Boot, PostgreSQL with pgvector, Apache Kafka, and pluggable LLM providers.
 
-[![Watch the FinDocAgent demo](screens/Document_Query.png)](https://youtu.be/Wnl3h9jDs8c)
+[![Watch the FinDocAgent demo](screens/FinDocRefinedQuery.png)](https://youtu.be/Wnl3h9jDs8c)
 
 *Watch the demo: upload a financial document, ask a question, and inspect the cited answer and its trace.*
 
@@ -46,15 +46,19 @@ Upload documents, track processing status and chunk counts, and manage the tenan
 
 ### Ask Questions, Get Cited Answers
 
-Ask questions against selected documents and review the generated answer, detected intent, confidence, and source evidence together.
+Ask a precise question against the selected service agreement to compare P1 and P4 incident definitions, response targets, resolution targets, and the timing rule.
 
-![FinDocAgent grounded query screen](screens/Document_Query.png)
+![FinDocAgent query comparing P1 and P4 incident service levels](screens/FinDocRefinedQuery.png)
 
 ### Explainable Answers: See How Each Answer Was Built
 
-The second demonstrated query asks: **“What are the response and resolution times for a P1 critical incident versus a P4 low priority incident?”** It shows the same grounded workflow with a different business question and makes the audit trail visible to a reviewer.
+For a follow-up that tests cross-section retrieval and careful interpretation, ask:
 
-![FinDocAgent Query 2 answer with sources](screens/Document%20Query%202.png)
+> **Section 4.1 sets a 15-minute initial response target for P1 incidents, while Section 5.2 lists a penalty when P1 response exceeds one hour. Explain the difference between the SLA target and the penalty trigger, including the penalty amount and cap. Do not assume the agreement states what happens between those thresholds; cite both sections.**
+
+![FinDocAgent follow-up query comparing the P1 response target and penalty trigger](screens/RefinedFollowUpQuery.png)
+
+Both examples use the same agreement and selected-document query flow. Answers appear before the source cards; scroll below the answer to inspect the retrieved excerpts. The screenshots show the response text, detected intent, confidence, and source evidence.
 
 The query is executed through the backend in five visible stages:
 
@@ -66,9 +70,9 @@ The query is executed through the backend in five visible stages:
 
 The Recent Queries page shows the user's latest questions in one place. Selecting **Explain** opens the recorded `classify_intent`, `vector_search`, and `generate_report` stages, including their timings and a concise view of what each stage received and produced. This gives reviewers a practical explanation of how the answer was formed without exposing internal implementation details.
 
-![FinDocAgent recent document queries](screens/Recent%20Document%20Queries.png)
+![FinDocAgent recent queries including the new SLA comparison and follow-up](screens/Recent_Queries.png)
 
-![FinDocAgent Query 2 backend execution trace](screens/Document%20Query%202%20Explained.png)
+![FinDocAgent execution trace details for the P1 and P4 comparison query](screens/Executed_Query_Detail.png)
 
 ### Watch the Demo (Video)
 
