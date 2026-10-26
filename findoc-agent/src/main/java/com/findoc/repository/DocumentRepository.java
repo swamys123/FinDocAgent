@@ -33,6 +33,14 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
         """, nativeQuery = true)
     Optional<String> findCurrentStatus(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+        update documents
+        set status = 'PENDING', error_msg = null, updated_at = current_timestamp
+        where id = :id and tenant_id = :tenantId and deleted_at is null and status = 'FAILED'
+        """, nativeQuery = true)
+    int queueFailedDocumentForReplay(@Param("id") UUID id, @Param("tenantId") UUID tenantId);
+
     @Modifying
     @Query(value = """
         update documents

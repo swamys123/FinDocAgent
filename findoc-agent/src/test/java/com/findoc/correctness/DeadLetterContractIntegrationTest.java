@@ -2,9 +2,10 @@ package com.findoc.correctness;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.findoc.controller.DocumentController;
+import com.findoc.controller.AdminDlqReplayController;
 import com.findoc.messaging.IngestionJob;
 import com.findoc.service.document.DocumentService;
+import com.findoc.service.document.DlqReplayService;
 import com.findoc.util.TenantContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -44,6 +45,8 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
 
     @Autowired
     DocumentService documentService;
+    @Autowired
+    DlqReplayService dlqReplayService;
     @Autowired
     ObjectMapper objectMapper;
     @Autowired
@@ -117,15 +120,38 @@ class DeadLetterContractIntegrationTest extends CorrectnessTestSupport {
         assertThat(hasReason).as("status response has a failure reason field: %s", json).isTrue();
     }
 
-    /** Audit 3 (c, f2): resetForRetry() exists on the entity but nothing exposes a retry/replay operation. */
+    /** Audit 3 (c, f2): replay the failed job through the transactional outbox without changing its tenant or owner. */
     @Test
-    void ownerCanRetriggerIngestionOfTheirFailedDocument() {
-        boolean hasRetryEndpoint = Arrays.stream(DocumentController.class.getDeclaredMethods())
+    void adminReplayPreservesTenantAndOwnerAndReingestsDocument() throws Exception {
+        StoredDocument stored = exhaustRetries();
+        Mockito.when(embeddingService.embed(Mockito.anyString())).thenReturn(vector());
+
+        dlqReplayService.replay(stored.id(), stored.account().tenant().getId());
+
+        Awaitility.await().alias("replayed job must complete ingestion")
+            .atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(200))
+            .untilAsserted(() -> assertThat(status(stored.id())).isEqualTo("READY"));
+
+        String payload = jdbc.queryForObject(
+            "select payload::text from outbox where tenant_id = ? and payload ->> 'documentId' = ?",
+            String.class, stored.account().tenant().getId(), stored.id().toString());
+        JsonNode replayJob = objectMapper.readTree(payload);
+        assertThat(replayJob.get("documentId").asText()).isEqualTo(stored.id().toString());
+        assertThat(replayJob.get("tenantId").asText()).isEqualTo(stored.account().tenant().getId().toString());
+        assertThat(replayJob.get("userId").asText()).isEqualTo(stored.account().user().getId().toString());
+        assertThat(jdbc.queryForObject(
+            "select count(*) from outbox where tenant_id = ? and payload ->> 'documentId' = ?",
+            Integer.class, stored.account().tenant().getId(), stored.id().toString())).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+            "select retry_count from documents where id = ?", Integer.class, stored.id()))
+            .isEqualTo(EXPECTED_ATTEMPTS);
+
+        boolean hasReplayEndpoint = Arrays.stream(AdminDlqReplayController.class.getDeclaredMethods())
             .map(method -> method.getAnnotation(PostMapping.class))
             .filter(java.util.Objects::nonNull)
             .flatMap(mapping -> Arrays.stream(mapping.value()))
-            .anyMatch(path -> path.toLowerCase(Locale.ROOT).contains("retry"));
+            .anyMatch(path -> path.toLowerCase(Locale.ROOT).contains("replay"));
 
-        assertThat(hasRetryEndpoint).as("POST /api/v1/documents/{id}/retry (or equivalent) exists").isTrue();
+        assertThat(hasReplayEndpoint).as("POST /api/v1/admin/dlq/{documentId}/replay exists").isTrue();
     }
 }

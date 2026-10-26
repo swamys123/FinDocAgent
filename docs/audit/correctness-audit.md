@@ -77,7 +77,8 @@ processing claims are recovered through the transactional outbox.
 ## Audit 3 – Is dead-letter handling safe, observable and replayable?
 
 Files: `messaging/KafkaConfiguration.java`, `messaging/KafkaIngestionConsumer.java`, `service/document/IngestionService.java`,
-`entity/Document.java`, `controller/DocumentController.java`, `resources/application.yml`.
+`service/document/DlqReplayService.java`, `entity/Document.java`, `controller/AdminDlqReplayController.java`,
+`config/SecurityConfig.java`, `resources/application.yml`.
 
 | # | Area | Finding | Verdict |
 |---|---|---|---|
@@ -88,13 +89,13 @@ Files: `messaging/KafkaConfiguration.java`, `messaging/KafkaIngestionConsumer.ja
 | b2 | Atomicity | FAILED is committed in the destination resolver *before* the DLQ send; no outbox/transaction links them | UNSAFE |
 | b3 | DLQ publish fails | Redelivery calls `recordFailure` on an already-`FAILED` document → `IllegalStateException` every time; the job can never be dead-lettered and blocks its partition (38 such exceptions logged in the test run) | UNSAFE |
 | b5 | Poison pill | Covered by Audit 2 (h) | UNSAFE |
-| c | Replay mechanism | None: no endpoint, CLI, job or runbook. `Document.resetForRetry()` is never called | UNSAFE |
-| d | Republish to ingestion topic | `FAILED`/`PENDING` doc re-ingests (chunks soft-deleted + re-inserted); `READY` doc wedges the partition (Audit 2 d); concurrent replays race (Audit 2 e) | UNSAFE (covered by Audit 2 tests) |
+| c | Replay mechanism | `POST /api/v1/admin/dlq/{documentId}/replay` identifies the message by document UUID, requires a tenant `ADMIN`, scopes the document lookup to the JWT tenant, and atomically transitions `FAILED` to `PENDING` with one transactional outbox event. A repeated call while `PENDING` is a no-op; `PROCESSING`/`READY` return 409. | SAFE |
+| d | Republish to ingestion topic | Replay uses the transactional outbox and original document owner/tenant; conditional status transition prevents duplicate events. `READY` and active `PROCESSING` documents cannot be replayed; the existing consumer acknowledges a `READY` delivery as a no-op. | SAFE |
 | e1 | Topic config | DLQ not declared anywhere (no `NewTopic`); partitions/replication/retention unmanaged. Auto-created DLQ has broker defaults | UNSAFE |
 | e2 | Partition coupling | DLQ resolver returns `record.partition()`, but spring-kafka falls back to broker partitioning when the DLQ has fewer partitions. A job from partition 2 of a 3-partition source was dead-lettered to a 1-partition DLQ | SAFE (disproved by experiment) |
 | e3 | Observability | Actuator exposes only `health,info`; no DLQ metric (no meter name contains `dlq`/`dead`), no alert | UNSAFE |
 | f1 | Failure reason visible | `error_msg` stored but `DocumentResponse` has no field for it | UNSAFE |
-| f2 | Self re-trigger | No retry endpoint; only re-upload | UNSAFE |
+| f2 | Admin re-trigger | Authorized tenant admins can re-trigger a failed job by document UUID; owner identity and tenant are copied from the stored document, not supplied by the caller. | SAFE |
 
 Not testable from code: broker-side DLQ replication factor and retention in production (UNKNOWN; e1 test covers the
 declaration gap only).
@@ -151,7 +152,7 @@ All 18 tests of Audits 1–3 assert the desired guarantee and **failed against t
 | `failedDocumentRecordsTheRealNumberOfDeliveryAttempts` (`DeadLetterContractIntegrationTest`) | A3 b1 | expected 3, was 1 |
 | `deadLetteringIsObservableThroughAMetric` (`DeadLetterContractIntegrationTest`) | A3 e3: no DLQ metric | No meter name contains `dlq`/`dead` |
 | `ownerCanSeeWhyTheirDocumentFailed` (`DeadLetterContractIntegrationTest`) | A3 f1 | Response JSON has `status: FAILED` and no error/reason field |
-| `ownerCanRetriggerIngestionOfTheirFailedDocument` (`DeadLetterContractIntegrationTest`) | A3 c, f2: no retry/replay endpoint | No `@PostMapping` containing "retry" on `DocumentController` |
+| `adminReplayPreservesTenantAndOwnerAndReingestsDocument` (`DeadLetterContractIntegrationTest`) | A3 c, d, f2: authorized replay, tenant/owner preservation, and status progression | Before the fix, no authorized admin replay endpoint or transactional replay path existed |
 | `documentIsNotMarkedFailedUntilTheDeadLetterPublishSucceeds` (`DeadLetterPublishAtomicityIntegrationTest`) | A3 b2: status committed before DLQ send | DLQ send fails permanently; document is `FAILED` |
 | `jobIsDeadLetteredEvenIfTheFirstDeadLetterPublishFails` (`DeadLetterPublishRecoveryIntegrationTest`) | A3 b3: recovery loop on already-`FAILED` doc | DLQ stays empty for 60 s; log shows `cannot fail from status FAILED` |
 | `deadLetterTopicIsDeclaredWithExplicitPartitionsAndRetention` (`DeadLetterTopicProvisioningIntegrationTest`) | A3 e1: DLQ not declared | DLQ topic does not exist at startup |
@@ -220,5 +221,6 @@ controller and Testcontainers coverage validates replay, mismatch rejection, ten
 expiry, and rollback of failed operations.
 
 The remaining Audit 4 work is content-hash deduplication (including a unique live-document index and duplicate
-retrieval/embedding coverage) and frontend use of idempotency keys when retry behavior is added. Audit 3 findings
-also remain pending.
+retrieval/embedding coverage) and frontend use of idempotency keys when retry behavior is added. Audit 3 replay is
+implemented; retry/DLQ publish atomicity, failure recovery, provisioning, observability, and failure-reason visibility
+remain pending.

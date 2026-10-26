@@ -9,6 +9,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
@@ -27,11 +28,14 @@ class AuthServiceTest {
         when(user.getPasswordHash()).thenReturn(new BCryptPasswordEncoder().encode("password"));
         when(user.getId()).thenReturn(UUID.randomUUID());
         when(user.getUsername()).thenReturn("demo");
+        when(user.getRole()).thenReturn("ADMIN");
         when(repository.findByUsernameAndTenantIdAndDeletedAtIsNull("demo", TENANT_ID)).thenReturn(java.util.Optional.of(user));
 
-        new AuthService(jwtService, repository, 3600).authenticate(new AuthRequest(TENANT_ID, "demo", "password"));
+        var response = new AuthService(jwtService, repository, 3600)
+            .authenticate(new AuthRequest(TENANT_ID, "demo", "password"));
 
         verify(repository).findByUsernameAndTenantIdAndDeletedAtIsNull("demo", TENANT_ID);
+        assertThat(jwtService.parse(response.accessToken()).get("role", String.class)).isEqualTo("ADMIN");
     }
 
     @Test

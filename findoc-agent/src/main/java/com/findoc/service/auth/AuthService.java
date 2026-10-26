@@ -31,7 +31,7 @@ public class AuthService {
         }
 
         return new AuthResponse(
-            jwtService.issue(user.getTenant().getId(), user.getId(), user.getUsername()),
+            jwtService.issue(user.getTenant().getId(), user.getId(), user.getUsername(), user.getRole()),
             "Bearer",
             expirySeconds,
             user.getTenant().getId()
