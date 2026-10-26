@@ -107,7 +107,7 @@ The database and uploaded-file volumes are removed only by `docker compose --env
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
 
-### Backend tests
+### Backend and frontend tests
 
 From the repository root, run the unit, Docker-backed integration, and distributed-systems correctness suites:
 
@@ -124,11 +124,19 @@ JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnes
 JAVA_TOOL_OPTIONS="-Dapi.version=1.44" ./gradlew test integrationTest correctnessTest localIntegrationTest --console=plain
 ```
 
-There is currently no configured frontend component-test runner. See the [developer guide](docs/dev-guide/README.md) for detailed test prerequisites and coverage.
+The frontend has Vitest component tests for login and recent-query trace flows. From the repository root, run them with:
+
+```bash
+cd findoc-agent/frontend
+npm ci
+npm test
+```
+
+The current component suite contains eight tests. Frontend build and lint commands are `npm run build` and `npm run lint`; see the [developer guide](docs/dev-guide/README.md) for detailed prerequisites and coverage.
 
 ## Project Status
 
-FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management, document selection, grounded session-aware querying, and recent-query trace explanations. DLQ delivery safety, replay, metrics, and content-hash deduplication are implemented; production Kafka topic settings, permissions, and alerting still require deployment verification. See the [implementation status](docs/implementation-status.md).
+FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads with content-hash deduplication, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management (including safe retry with a stable idempotency key), document selection, grounded session-aware querying, and recent-query trace explanations, with focused Vitest component tests for login and recent traces. DLQ delivery safety, replay, and metrics are implemented; production Kafka topic settings, permissions, and alerting still require deployment verification. See the [implementation status](docs/implementation-status.md).
 
 ## License
 

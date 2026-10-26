@@ -9,11 +9,11 @@
 - Added focused LoginPage tests for successful navigation, authentication rejection, and server failure.
 - Added TracesPage tests for loading and populated state, empty state, list/detail request failures, and expanding trace details.
 - Applied compatible dependency updates after the test-tool installation surfaced advisories; the frontend dependency audit now reports zero vulnerabilities.
+- Aligned the project README and developer guide with the frontend test runner, test coverage, and safe upload retry behavior.
 
 ## Pending work
 
 - Verify production Kafka DLQ permissions, effective replication/retention, and alert configuration in the target deployment.
-- Provision the configured local integration-test database before running `localIntegrationTest`.
 - Add circuit-breaker metrics only if deployment consumers require them.
 
 ## Validation performed

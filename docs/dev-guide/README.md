@@ -4,14 +4,11 @@
 
 The implementation is now beyond the initial scaffold and includes the main tenant-aware backend flow for document ingestion and agent querying.
 
-Previously recorded validation (not rerun during this documentation review):
+Previously recorded validation (not rerun during this documentation update):
 
-- `cd findoc-agent && ./gradlew test --console=plain` passed.
-- A prior `cd findoc-agent && ./gradlew localIntegrationTest --console=plain` run passed against locally running PostgreSQL/pgvector and Kafka. The latest recorded attempt could not start because the configured `findoc-test-db` database did not exist. Live provider tests are skipped when their API keys are absent, once the test application context starts.
-- The Audit 1 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadPublishAtomicityIntegrationTest --console=plain` pass using Testcontainers.
-- The Audit 2 cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.IngestionIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
-- The Audit 4 idempotency-key cases in `cd findoc-agent && ./gradlew correctnessTest --tests com.findoc.correctness.UploadIdempotencyIntegrationTest --console=plain` pass using Testcontainers.
-- `cd findoc-agent && ./gradlew bootRun --console=plain` started the Spring Boot app and initialized Tomcat on port 8080.
+- `test`: **97 passed**; Docker-backed `integrationTest`: **1 passed**; `correctnessTest`: **38 passed** using `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
+- On 2026-10-26, `localIntegrationTest` passed all **5 tests** against local PostgreSQL/pgvector and Kafka, including three live-provider tests.
+- Frontend `npm test`: **8 passed** across the login and recent-trace component suites; `npm run build` and `npm run lint` passed; `npm audit` reported no vulnerabilities.
 
 Implemented so far:
 
@@ -27,10 +24,12 @@ Implemented so far:
 - Tenant-scoped session history and query-trace explanation endpoints, plus a recent-query trace screen in the frontend
 - Tenant-safe document comparison with independent retrieval for each document
 - Optional tenant-scoped HTTP idempotency keys for upload, query, and comparison; tenant-admin replay for failed ingestion jobs
+- Tenant-scoped document content-hash deduplication and manual upload retry using the same idempotency key for that attempt
 - Session and trace persistence with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
 - OpenRouter-backed generation with structured comparison fallback and response validation
 - React frontend with login, document management, status polling, document selection, session-aware queries, and recent-query trace explanations
-- Backend CORS configuration for the local frontend origin. The frontend currently has no component test runner, and full-repository build/lint are blocked by existing errors in `LoginPage.tsx` and `TracesPage.tsx`; focused checks for changed frontend modules passed.
+- Vitest component tests for login success/failure states and recent-trace loading, empty, failure, and detail-expansion states
+- Backend CORS configuration for the local frontend origin
 - Generated OpenAPI documentation and Swagger UI with bearer JWT security metadata
 
 Current runtime caveats:
@@ -161,11 +160,12 @@ The backend allows `http://localhost:5173` by default. When the frontend runs at
 Frontend validation commands are:
 
 ```bash
+npm test
 npm run build
 npm run lint
 ```
 
-The frontend includes a Recent Queries screen with expandable explanations for recorded traces. It does not currently include session-history or document-comparison screens; those remain available through the backend API.
+`npm test` runs the Vitest component suite (eight tests across `LoginPage` and `TracesPage`). The frontend includes a Recent Queries screen with expandable explanations for recorded traces and supports safe retry of a failed upload with the same idempotency key. It does not currently include session-history or document-comparison screens; those remain available through the backend API.
 
 The project uses Spring Security to protect API endpoints. Public endpoints are:
 
@@ -525,7 +525,7 @@ Sample response:
 
 ## Optional HTTP idempotency keys
 
-The upload, agent query, and document comparison `POST` endpoints accept an optional `Idempotency-Key` header. Keys are scoped to the authenticated tenant, must be non-blank and at most 255 characters, and expire after 24 hours. A repeated request with the same key and request fingerprint replays the stored status and response; reusing the key with a different request returns HTTP 422. Responses for keyed requests include `Idempotent-Replayed: true` or `false`. These headers are allowed/exposed by the configured API CORS policy. The frontend does not currently attach idempotency keys or implement keyed retry handling.
+The upload, agent query, and document comparison `POST` endpoints accept an optional `Idempotency-Key` header. Keys are scoped to the authenticated tenant, must be non-blank and at most 255 characters, and expire after 24 hours. A repeated request with the same key and request fingerprint replays the stored status and response; reusing the key with a different request returns HTTP 422. Responses for keyed requests include `Idempotent-Replayed: true` or `false`. These headers are allowed/exposed by the configured API CORS policy. The frontend uses a stable key for a given upload attempt, so retrying after a failed request does not create a duplicate upload. It does not currently attach keys to query or comparison requests.
 
 ## Verification checklist
 
@@ -551,4 +551,4 @@ For frontend verification, also confirm that login succeeds, documents can be se
 - OpenRouter generation and comparison fall back to deterministic local responses when the API key is blank, a provider call fails, or its circuit breaker is open. Gemini embedding does not have an equivalent fallback, so ingestion requires a working Gemini key and endpoint.
 - Integration tests that use Testcontainers require a working Docker socket; when the daemon is unavailable, validate the live PostgreSQL/Kafka workflow with separately running local services.
 - The project includes a seeded demo tenant and user, but production deployments should rely on a proper secret manager and database administration workflow.
-- The frontend provides a recent-query list and expandable trace explanations; automated frontend tests remain a future enhancement.
+- The frontend provides a recent-query list and expandable trace explanations; focused component tests cover login and recent-trace behavior.
