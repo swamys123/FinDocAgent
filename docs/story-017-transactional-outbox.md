@@ -1,5 +1,7 @@
 # Story 017: Transactional ingestion outbox
 
+Design rationale and trade-offs are recorded in [Story 017 design decisions](./story-017-transactional-outbox-design-decisions.md).
+
 ## Completed work
 
 - Added a Liquibase-managed `outbox` table with JSONB payloads, tenant attribution, creation/sent timestamps, and a partial index for pending events.

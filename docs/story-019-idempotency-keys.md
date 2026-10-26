@@ -1,5 +1,7 @@
 # Story 019: Audit 4 tenant-scoped idempotency keys
 
+See the [design decision record](./story-019-idempotency-design-decisions.md) for the rationale, endpoint scope, request fingerprint contract, transaction and concurrency model, expiry behavior, and explicit non-goals.
+
 ## Completed work
 
 - Added Liquibase-managed `idempotency_keys` storage with a tenant/key primary key, request fingerprint, stored response status/body, and 24-hour expiry.

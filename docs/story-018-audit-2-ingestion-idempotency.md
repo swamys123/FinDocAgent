@@ -1,5 +1,7 @@
 # Story 018: Audit 2 ingestion idempotency
 
+Design rationale and trade-offs are documented in [Story 018 design decisions](./story-018-audit-2-ingestion-idempotency-design-decisions.md).
+
 ## Completed work
 
 - Added a Liquibase partial unique index on live `document_chunks (document_id, chunk_index)` rows, with a precondition that stops safely if existing live duplicates are present.

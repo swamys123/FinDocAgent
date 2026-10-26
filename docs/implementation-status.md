@@ -51,7 +51,7 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 017 | [Transactional ingestion outbox](story-017-transactional-outbox.md) | Complete | Implement Audit 2 ingestion idempotency |
 
-| Story 018 | [Audit 2 ingestion idempotency](story-018-audit-2-ingestion-idempotency.md) | Complete | Implement Audit 3 DLQ safety, observability, and replayability |
+| Story 018 | [Audit 2 ingestion idempotency](story-018-audit-2-ingestion-idempotency.md) · [Design decisions](story-018-audit-2-ingestion-idempotency-design-decisions.md) | Complete | Implement Audit 3 DLQ safety, observability, and replayability |
 
 | Story 019 | [Audit 4 tenant-scoped idempotency keys](story-019-idempotency-keys.md) | Complete | Implement Audit 3 DLQ safety, observability, and replayability |
 
