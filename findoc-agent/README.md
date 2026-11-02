@@ -1,6 +1,6 @@
 # FinDoc Agent: Backend and Developer Setup
 
-Tenant-aware document intelligence application built with Spring Boot 3.2, Java 17, PostgreSQL with pgvector, Apache Kafka, and a Vite/React frontend. It supports document upload and download, asynchronous PDF/text ingestion, cosine-similarity retrieval, grounded agent responses with citations, session-aware queries, document comparison, query traces, and tenant-scoped persistence.
+Tenant-aware document intelligence application built with Spring Boot 3.2, Java 17, PostgreSQL with pgvector, Apache Kafka, and a Vite/React frontend. It supports document upload and download, asynchronous PDF/text ingestion, cosine-similarity retrieval, grounded agent responses with citations, session-aware queries, document comparison, query traces, tenant-scoped persistence, and an optional local Prometheus/Grafana/Tempo observability stack.
 
 ## Prerequisites
 
@@ -15,6 +15,40 @@ For host-based local runs:
 ## Run with Docker Compose
 
 See the root [Compose quick start](../README.md#quick-start-run-everything-with-docker-compose) for the full instructions, ports, and shutdown commands. It starts PostgreSQL/pgvector, Kafka, the backend, and the frontend using `findoc-agent/.env`.
+
+## Run Observability
+
+From the repository root, start the normal application with the opt-in Prometheus, Grafana, and Tempo services:
+
+```bash
+docker compose --env-file findoc-agent/.env -f docker-compose.yml -f docker-compose.observability.yml --profile observability up -d
+```
+
+The observability Compose override activates `application-observability.yml`: the backend exports OTLP traces to Tempo and serves management endpoints on internal port `8081`. The port is intentionally not published to the host; Prometheus scrapes `backend:8081/actuator/prometheus` over the Compose network. Normal Compose startup remains unchanged when the override is omitted.
+
+- Grafana: http://localhost:3000 (`admin` / `findoc-local` by default)
+- Prometheus: http://localhost:9090
+- Tempo query API: http://localhost:3200
+- Grafana dashboard: **Dashboards → FinDoc Agent → FinDoc Agent Observability**
+- Traces: **Explore → Tempo**; generate HTTP requests and document ingestion to see spans cross the outbox and Kafka.
+
+The dashboard includes outbox pending count and age, Kafka consumer lag, retained DLQ depth, provider and agent API p95 latency, breaker state, provider-reported token counts, and estimated token cost. Agent API latency is broken down by URI for the query and explain endpoints and is exported as Prometheus histogram buckets; provider request latency is shown by provider. Provider token costs are disabled until USD-per-million-token rates are set with `GEMINI_INPUT_USD_PER_MILLION_TOKENS`, `OPENROUTER_INPUT_USD_PER_MILLION_TOKENS`, and `OPENROUTER_OUTPUT_USD_PER_MILLION_TOKENS`. The rates must reflect the provider/model pricing you intend to use; estimates do not represent billed charges. Set `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD` to override the local-only Grafana defaults.
+
+Example panels below show endpoint-level API p95, provider p95, and a Tempo trace for an agent query. The latency panels help distinguish time spent in the application/API from time spent waiting on an external provider; the trace provides per-request span detail.
+
+![Agent query and explain API p95 latency by endpoint](../screens/api_p95_latency.png)
+
+![External provider request p95 latency by provider](../screens/provider_p95_latency.png)
+
+![FinDoc Agent query request trace in Grafana Tempo](../screens/api_trace.png)
+
+Stop the full stack while preserving the database, Grafana, Prometheus, and Tempo volumes:
+
+```bash
+docker compose --env-file findoc-agent/.env -f docker-compose.yml -f docker-compose.observability.yml --profile observability down
+```
+
+Do not use `down -v` unless you intend to delete those volumes. The profile, default Grafana credentials, and unprotected internal management endpoint are for local development and must be adapted before production deployment.
 
 ## Run Locally (Backend)
 

@@ -19,6 +19,8 @@ spring:
     change-log: classpath:/db/changelog/db.changelog-master.xml
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    template:
+      observation-enabled: true
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -32,6 +34,7 @@ spring:
     listener:
       ack-mode: record
       missing-topics-fatal: false
+      observation-enabled: true
   servlet:
     multipart:
       max-file-size: 20MB
@@ -80,6 +83,13 @@ findoc:
     outbox:
       poll-interval-ms: ${FINDOC_INGESTION_OUTBOX_POLL_INTERVAL_MS:1000}
       batch-size: ${FINDOC_INGESTION_OUTBOX_BATCH_SIZE:20}
+  observability:
+    metrics:
+      refresh-interval-ms: ${FINDOC_METRICS_REFRESH_INTERVAL_MS:30000}
+    provider-cost:
+      gemini-input-usd-per-million-tokens: ${GEMINI_INPUT_USD_PER_MILLION_TOKENS:0}
+      openrouter-input-usd-per-million-tokens: ${OPENROUTER_INPUT_USD_PER_MILLION_TOKENS:0}
+      openrouter-output-usd-per-million-tokens: ${OPENROUTER_OUTPUT_USD_PER_MILLION_TOKENS:0}
 
 logging:
   level:
@@ -91,3 +101,17 @@ logging:
 
 management:
   endpoints.web.exposure.include: health,info,metrics
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.0}
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        "findoc.provider.request": true
+        "http.server.requests": true
+  prometheus:
+    metrics:
+      export:
+        enabled: true

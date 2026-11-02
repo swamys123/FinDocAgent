@@ -1,6 +1,7 @@
 package com.findoc.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.findoc.config.TraceContext;
 import com.findoc.repository.OutboxRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,13 +13,16 @@ public class OutboxDelivery {
     private final OutboxRepository outboxRepository;
     private final IngestionProducer ingestionProducer;
     private final ObjectMapper objectMapper;
+    private final TraceContext traceContext;
 
     public OutboxDelivery(OutboxRepository outboxRepository,
                           IngestionProducer ingestionProducer,
-                          ObjectMapper objectMapper) {
+                          ObjectMapper objectMapper,
+                          TraceContext traceContext) {
         this.outboxRepository = outboxRepository;
         this.ingestionProducer = ingestionProducer;
         this.objectMapper = objectMapper;
+        this.traceContext = traceContext;
     }
 
     @Transactional
@@ -36,10 +40,13 @@ public class OutboxDelivery {
             throw new IllegalStateException("Unable to deserialize ingestion outbox event " + event.id(), exception);
         }
 
-        ingestionProducer.publish(job);
-        if (outboxRepository.markSent(event.id()) != 1) {
-            throw new IllegalStateException("Unable to mark ingestion outbox event sent: " + event.id());
-        }
+        traceContext.continueTrace(event.traceContext(), "findoc.ingestion.outbox.publish", () -> {
+            ingestionProducer.publish(job);
+            if (outboxRepository.markSent(event.id()) != 1) {
+                throw new IllegalStateException("Unable to mark ingestion outbox event sent: " + event.id());
+            }
+            return null;
+        });
         return true;
     }
 }

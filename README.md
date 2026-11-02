@@ -103,6 +103,46 @@ docker compose --env-file findoc-agent/.env down
 
 The database and uploaded-file volumes are removed only by `docker compose --env-file findoc-agent/.env down -v`; use that only when you intend to reset local data. This source-mounted development setup is not intended for production. Gemini-backed document ingestion requires a valid `GEMINI_API_KEY`; keep provider credentials in the ignored `.env` file, not in Compose YAML.
 
+## Observability
+
+The optional observability profile adds Prometheus, Grafana, and Tempo. Prometheus scrapes bounded-cardinality application metrics; Tempo receives OTLP traces. The separate Spring `observability` profile moves management endpoints to the backend's internal port `8081`, which is not published to the host. The Compose override activates that Spring profile when starting the observability stack.
+
+Start the normal application and the observability services from the repository root:
+
+```bash
+docker compose --env-file findoc-agent/.env -f docker-compose.yml -f docker-compose.observability.yml --profile observability up -d
+```
+
+Open [Grafana](http://localhost:3000) (`admin` / `findoc-local` by default), select **Dashboards → FinDoc Agent → FinDoc Agent Observability**, and use **Explore → Tempo** to find distributed traces. [Prometheus](http://localhost:9090) is also available directly; its target scrapes `backend:8081/actuator/prometheus` inside the Compose network. Tempo's query API is at [http://localhost:3200](http://localhost:3200). Generate traffic, including a document upload, to populate ingestion and end-to-end HTTP → outbox → Kafka → consumer traces.
+
+The dashboard covers ingestion consumer lag, pending outbox count and age, DLQ depth, provider circuit-breaker state, provider and agent API p95 latency, provider-reported token usage, and estimated token cost. Agent API latency is grouped by URI for the query and explain endpoints; provider latency is grouped by provider. Token counts are recorded only when the provider response contains usage metadata. Cost is emitted only after configuring the relevant USD-per-million-token rates (`GEMINI_INPUT_USD_PER_MILLION_TOKENS`, `OPENROUTER_INPUT_USD_PER_MILLION_TOKENS`, and `OPENROUTER_OUTPUT_USD_PER_MILLION_TOKENS`); the estimates are not a billing source of truth. Override the development Grafana credentials with `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`.
+
+![Provisioned FinDoc Agent observability dashboard](screens/observability-overview.png)
+
+### Request and provider latency
+
+The agent API p95 panel compares rolling request latency for `/api/v1/agent/query` and `/api/v1/agent/explain/{queryId}`. The provider p95 panel separately tracks external provider request latency, making it easier to distinguish application/API delays from model-provider delays.
+
+![Agent query and explain API p95 latency by endpoint](screens/api_p95_latency.png)
+
+![External provider request p95 latency by provider](screens/provider_p95_latency.png)
+
+### Distributed request trace
+
+Tempo traces show the spans for an individual agent API request, including the HTTP request and its security-filter processing. End-to-end ingestion traces can additionally show outbox and Kafka processing.
+
+![FinDoc Agent query request trace in Grafana Tempo](screens/api_trace.png)
+
+![FinDoc Agent distributed ingestion trace in Grafana Tempo](screens/observability-trace.png)
+
+Stop the full stack without deleting persistent volumes:
+
+```bash
+docker compose --env-file findoc-agent/.env -f docker-compose.yml -f docker-compose.observability.yml --profile observability down
+```
+
+The observability Compose profile and development credentials are for local use, not production deployment. See the [backend developer runbook](findoc-agent/README.md#run-observability) for service details and configuration.
+
 ## Developer Guide
 
 For prerequisites, local backend and frontend setup, configuration, public endpoints, OpenAPI/Swagger access, demo credentials, and validation commands, see the [developer runbook](findoc-agent/README.md).
@@ -136,7 +176,7 @@ The current component suite contains eight tests. Frontend build and lint comman
 
 ## Project Status
 
-FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads with content-hash deduplication, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management (including safe retry with a stable idempotency key), document selection, grounded session-aware querying, and recent-query trace explanations, with focused Vitest component tests for login and recent traces. DLQ delivery safety, replay, and metrics are implemented; production Kafka topic settings, permissions, and alerting still require deployment verification. See the [implementation status](docs/implementation-status.md).
+FinDocAgent has locally validated core document-ingestion and query flows. The backend supports tenant-isolated JWT authentication, durable document uploads with content-hash deduplication, Kafka ingestion with retry/DLQ handling, PDF and text extraction, whitespace-delimited chunking, Gemini embeddings, pgvector cosine retrieval, session-aware generation, citations, explain traces, document comparison, optional idempotency keys, and provider fallback resilience. The React frontend covers login, upload and document status management (including safe retry with a stable idempotency key), document selection, grounded session-aware querying, and recent-query trace explanations, with focused Vitest component tests for login and recent traces. An opt-in local Prometheus/Grafana/Tempo stack provides application metrics and distributed traces. DLQ delivery safety, replay, and metrics are implemented; production Kafka topic permissions, replication/retention, alert configuration, and telemetry retention/rates still require deployment verification. See the [implementation status](docs/implementation-status.md).
 
 ## License
 

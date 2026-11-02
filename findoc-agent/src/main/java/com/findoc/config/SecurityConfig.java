@@ -36,7 +36,7 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http, JwtService jwtService, CorsConfigurationSource corsConfigurationSource) throws Exception {
         http.csrf(csrf -> csrf.disable()).sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .cors(c -> c.configurationSource(corsConfigurationSource))
-            .authorizeHttpRequests(a -> a.requestMatchers("/actuator/health", "/api/v1/auth/token", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+            .authorizeHttpRequests(a -> a.requestMatchers("/actuator/health", "/actuator/prometheus", "/api/v1/auth/token", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .addFilterBefore(new TenantJwtFilter(jwtService), org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)

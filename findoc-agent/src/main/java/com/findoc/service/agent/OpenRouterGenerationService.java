@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.findoc.entity.SessionMessage;
 import com.findoc.service.ProviderCircuitBreaker;
+import com.findoc.service.ProviderTelemetry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,9 +26,16 @@ public class OpenRouterGenerationService {
     private final String apiKey;
     private final String model;
     private final ProviderCircuitBreaker circuitBreaker;
+    private final ProviderTelemetry telemetry;
 
     public OpenRouterGenerationService(String apiKey, String model, String baseUrl) {
-        this(apiKey, model, baseUrl, 3, 30);
+        this(apiKey, model, baseUrl, 3, 30, new ProviderTelemetry(new SimpleMeterRegistry(), 0, 0, 0));
+    }
+
+    public OpenRouterGenerationService(
+            String apiKey, String model, String baseUrl, int failureThreshold, long openDurationSeconds) {
+        this(apiKey, model, baseUrl, failureThreshold, openDurationSeconds,
+            new ProviderTelemetry(new SimpleMeterRegistry(), 0, 0, 0));
     }
 
     @Autowired
@@ -35,7 +44,8 @@ public class OpenRouterGenerationService {
         @Value("${openrouter.model:google/gemma-4-31b-it:free}") String model,
         @Value("${openrouter.base-url:https://openrouter.ai}") String baseUrl,
         @Value("${openrouter.circuit-breaker.failure-threshold:3}") int failureThreshold,
-        @Value("${openrouter.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds) {
+        @Value("${openrouter.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds,
+        ProviderTelemetry telemetry) {
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -48,6 +58,8 @@ public class OpenRouterGenerationService {
         this.apiKey = apiKey;
         this.model = model;
         this.circuitBreaker = new ProviderCircuitBreaker(failureThreshold, Duration.ofSeconds(openDurationSeconds));
+        this.telemetry = telemetry;
+        this.telemetry.registerCircuitBreaker("openrouter", circuitBreaker);
     }
 
     public String generate(String query, String intent, List<String> sources) {
@@ -63,6 +75,7 @@ public class OpenRouterGenerationService {
         try {
             return circuitBreaker.execute(() -> generateFromProvider(query, intent, sources, history));
         } catch (ProviderCircuitBreaker.CircuitOpenException exception) {
+            telemetry.recordCircuitOpen("openrouter");
             log.warn("OpenRouter circuit is open; falling back to local summary for model '{}'", model);
             return summarizeLocally(query, intent, sources);
         } catch (RuntimeException exception) {
@@ -72,23 +85,25 @@ public class OpenRouterGenerationService {
     }
 
     private String generateFromProvider(String query, String intent, List<String> sources, List<SessionMessage> history) {
-        JsonNode response = restClient.post()
-            .uri("/api/v1/chat/completions")
-            .header("Authorization", "Bearer " + apiKey)
-            .header("HTTP-Referer", "https://localhost")
-            .header("X-Title", "FinDoc Agent")
-            .body(new OpenRouterRequest(
-                model,
-                generationMessages(query, intent, sources, history)
-            ))
-            .retrieve()
-            .body(JsonNode.class);
+        return telemetry.recordCall("openrouter", () -> {
+            JsonNode response = restClient.post()
+                .uri("/api/v1/chat/completions")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("HTTP-Referer", "https://localhost")
+                .header("X-Title", "FinDoc Agent")
+                .body(new OpenRouterRequest(
+                    model,
+                    generationMessages(query, intent, sources, history)
+                ))
+                .retrieve()
+                .body(JsonNode.class);
 
-        if (response == null || response.path("choices").isEmpty()) {
-            throw new IllegalStateException("OpenRouter returned an empty response");
-        }
-
-        return response.path("choices").get(0).path("message").path("content").asText();
+            if (response == null || response.path("choices").isEmpty()) {
+                throw new IllegalStateException("OpenRouter returned an empty response");
+            }
+            recordOpenRouterUsage(response);
+            return response.path("choices").get(0).path("message").path("content").asText();
+        });
     }
 
     public ComparisonGeneration compare(String aspect, List<String> documentASources, List<String> documentBSources) {
@@ -97,21 +112,31 @@ public class OpenRouterGenerationService {
         }
         JsonNode response;
         try {
-            response = circuitBreaker.execute(() -> restClient.post()
-            .uri("/api/v1/chat/completions")
-            .header("Authorization", "Bearer " + apiKey)
-            .header("HTTP-Referer", "https://localhost")
-            .header("X-Title", "FinDoc Agent")
-            .body(new OpenRouterRequest(
-                model,
-                List.of(new Message("user", comparisonPrompt(aspect, documentASources, documentBSources)))
-            ))
-            .retrieve()
-            .body(JsonNode.class));
+            response = circuitBreaker.execute(() -> telemetry.recordCall("openrouter", () -> {
+                JsonNode providerResponse = restClient.post()
+                    .uri("/api/v1/chat/completions")
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("HTTP-Referer", "https://localhost")
+                    .header("X-Title", "FinDoc Agent")
+                    .body(new OpenRouterRequest(
+                        model,
+                        List.of(new Message("user", comparisonPrompt(aspect, documentASources, documentBSources)))
+                    ))
+                    .retrieve()
+                    .body(JsonNode.class);
+                if (providerResponse != null) {
+                    recordOpenRouterUsage(providerResponse);
+                }
+                return providerResponse;
+            }));
         } catch (RuntimeException exception) {
+            if (exception instanceof ProviderCircuitBreaker.CircuitOpenException) {
+                telemetry.recordCircuitOpen("openrouter");
+            }
             log.warn("OpenRouter comparison call failed for model '{}'; falling back to local comparison", model, exception);
             return localComparison(aspect, documentASources, documentBSources);
         }
+
         String content = response == null ? "" : response.path("choices").path(0).path("message").path("content").asText();
         try {
             JsonNode result = objectMapper.readTree(stripCodeFence(content));
@@ -123,6 +148,16 @@ public class OpenRouterGenerationService {
         } catch (Exception exception) {
             log.warn("Failed to parse OpenRouter comparison response for model '{}'; falling back to local comparison", model, exception);
             return localComparison(aspect, documentASources, documentBSources);
+        }
+    }
+
+    private void recordOpenRouterUsage(JsonNode response) {
+        JsonNode usage = response.path("usage");
+        JsonNode promptTokens = usage.path("prompt_tokens");
+        JsonNode completionTokens = usage.path("completion_tokens");
+        if (promptTokens.isIntegralNumber() && completionTokens.isIntegralNumber()
+                && promptTokens.longValue() >= 0 && completionTokens.longValue() >= 0) {
+            telemetry.recordTokenUsage("openrouter", promptTokens.longValue(), completionTokens.longValue());
         }
     }
 

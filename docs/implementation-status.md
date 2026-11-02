@@ -3,9 +3,9 @@
 This file is the authoritative starting point for implementation work across sessions.
 
 ## Current Phase
-- Status: Upload, ingestion, vector retrieval, agent query, comparison, trace, provider resilience, and frontend workflows are implemented. Focused Vitest component tests cover login and recent trace flows. PDF page counts are persisted, but chunk-level page numbers are not currently populated. Audits 1–4 are implemented, including the transactional ingestion outbox, idempotent ingestion, DLQ publication/recovery and observability, content-hash deduplication, tenant-scoped HTTP idempotency, and a manual frontend upload retry that reuses its idempotency key. The [architecture and design overview](architecture-and-design-overview.md) summarizes current guarantees and maps business capabilities to their main Java service classes.
+- Status: Upload, ingestion, vector retrieval, agent query, comparison, trace, provider resilience, frontend workflows, and the optional Prometheus/Grafana/Tempo observability stack are implemented. Observability includes bounded-cardinality ingestion, DLQ, provider circuit-breaker, provider and agent API latency (including p95 histograms), and token-cost metrics, plus W3C trace propagation through the outbox and Kafka. Focused Vitest component tests cover login and recent trace flows. PDF page counts are persisted, but chunk-level page numbers are not currently populated. Audits 1–4 are implemented, including the transactional ingestion outbox, idempotent ingestion, DLQ publication/recovery and observability, content-hash deduplication, tenant-scoped HTTP idempotency, and a manual frontend upload retry that reuses its idempotency key. The [architecture and design overview](architecture-and-design-overview.md) summarizes current guarantees and maps business capabilities to their main Java service classes.
 - Completed: Gradle Spring Boot project, tenant-aware JWT authentication, protected document APIs, tenant-scoped persistence, durable BYTEA upload sources, transactional ingestion outbox and `SKIP LOCKED` Kafka relay, partial unique indexes for live document chunks and tenant-scoped document content hashes, SHA-256 backfill and upload deduplication, failed-duplicate requeue, conflict-upserting chunk writes, atomic tenant-scoped ingestion claim/completion/failure transitions and READY no-op handling, embedding calls outside transactions with durable per-chunk staging and retry reuse, stale claim heartbeat/recovery through the outbox, explicit record-level Kafka acknowledgments and poison-message deserialization recovery, retry-count DLQ metadata, publish-before-fail recovery ordering, configured DLQ topic partitions/replication/retention, DLQ published-job metric and Actuator metrics exposure, tenant-scoped failure reasons in document status responses, tenant-admin replay, manual frontend upload retry with stable per-attempt idempotency keys, plus the existing agent, security, persistence, API, and provider features described in prior stories.
-- Pending: Production Kafka topic creation permissions/effective replication and retention settings and deployment alert configuration require environment verification. Operational circuit-breaker metrics remain optional if required by deployment consumers.
+- Pending: Production Kafka topic creation permissions/effective replication and retention settings, deployment alert configuration, and production telemetry rate settings require environment verification.
 - Validation history: `test` passed all 97 backend unit tests, `correctnessTest` passed all 38 Testcontainers correctness tests against Docker Engine 29 with `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`, and `localIntegrationTest` passed all 5 tests against the configured local PostgreSQL/pgvector and Kafka services, including 3 live provider tests. The Docker-backed `integrationTest` is configured separately from local integration tests; see Story 023 for current verification. Full frontend `npm run build`, `npm run lint`, and `npm test` pass; the component suite has 8 tests across login and trace pages. `npm audit` reports no vulnerabilities.
 - Next item: Verify DLQ topic settings and alerts in the target deployment.
 - Story 016: The source-mounted full-stack Compose quickstart is implemented and runtime-verified with Docker Compose; all four services are running, the backend health check and demo auth return HTTP 200, and the Kafka ingestion consumer is registered. Gemini-backed document ingestion and volume persistence across restart remain unverified.
@@ -67,6 +67,8 @@ This file is the authoritative starting point for implementation work across ses
 
 | Story 025 | [Frontend readiness and component tests](story-025-frontend-readiness.md) | Complete | Verify production Kafka DLQ configuration and alerting |
 
+| Story 026 | [Metrics, tracing, and local observability](story-026-observability.md) | Complete; Compose override activates Spring observability profile and README guidance is aligned | Verify production Kafka and telemetry configuration and alerting |
+
 | Architecture | [Architecture and design overview](architecture-and-design-overview.md) | Complete | Keep the guide aligned with major runtime and reliability changes |
 
 | Audit | [Distributed-systems correctness audit (1–4) and correctness tests](audit/correctness-audit.md) | Implemented; 38/38 correctness tests pass | Verify production-only configuration |
@@ -75,7 +77,7 @@ This file is the authoritative starting point for implementation work across ses
 
 1. Verify configured DLQ replication, retention, permissions, and alerting in the target deployment.
 2. Provision the configured local integration-test database and rerun `localIntegrationTest`.
-3. Add operational circuit-breaker metrics only if required by deployment consumers.
+3. Configure and validate production token-cost rates and telemetry retention.
 
 ## Handoff Format
 

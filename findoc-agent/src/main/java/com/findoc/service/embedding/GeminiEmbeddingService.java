@@ -2,6 +2,8 @@ package com.findoc.service.embedding;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.findoc.service.ProviderCircuitBreaker;
+import com.findoc.service.ProviderTelemetry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
@@ -19,9 +21,16 @@ public class GeminiEmbeddingService implements EmbeddingService {
     private final String apiKey;
     private final String model;
     private final ProviderCircuitBreaker circuitBreaker;
+    private final ProviderTelemetry telemetry;
 
     public GeminiEmbeddingService(String apiKey, String model, String baseUrl) {
-        this(apiKey, model, baseUrl, 3, 30);
+        this(apiKey, model, baseUrl, 3, 30, new ProviderTelemetry(new SimpleMeterRegistry(), 0, 0, 0));
+    }
+
+    public GeminiEmbeddingService(
+            String apiKey, String model, String baseUrl, int failureThreshold, long openDurationSeconds) {
+        this(apiKey, model, baseUrl, failureThreshold, openDurationSeconds,
+            new ProviderTelemetry(new SimpleMeterRegistry(), 0, 0, 0));
     }
 
     @Autowired
@@ -30,7 +39,8 @@ public class GeminiEmbeddingService implements EmbeddingService {
             @Value("${gemini.embedding-model:gemini-embedding-001}") String model,
             @Value("${gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
             @Value("${gemini.circuit-breaker.failure-threshold:3}") int failureThreshold,
-            @Value("${gemini.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds) {
+            @Value("${gemini.circuit-breaker.open-duration-seconds:30}") long openDurationSeconds,
+            ProviderTelemetry telemetry) {
         HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -43,6 +53,8 @@ public class GeminiEmbeddingService implements EmbeddingService {
         this.apiKey = apiKey;
         this.model = model;
         this.circuitBreaker = new ProviderCircuitBreaker(failureThreshold, Duration.ofSeconds(openDurationSeconds));
+        this.telemetry = telemetry;
+        this.telemetry.registerCircuitBreaker("gemini", circuitBreaker);
     }
 
     @Override
@@ -50,12 +62,22 @@ public class GeminiEmbeddingService implements EmbeddingService {
         if (apiKey.isBlank()) {
             throw new EmbeddingException("Gemini API key is not configured");
         }
-        JsonNode response = circuitBreaker.execute(() -> restClient.post()
-            .uri(uriBuilder -> uriBuilder.path("/v1beta/models/{model}:embedContent")
-                .queryParam("key", apiKey).build(model))
-            .body(new GeminiEmbeddingRequest("models/" + model, DIMENSIONS, new GeminiContent(new GeminiPart(content))))
-            .retrieve()
-            .body(JsonNode.class));
+        JsonNode response;
+        try {
+            response = circuitBreaker.execute(() -> telemetry.recordCall("gemini", () -> restClient.post()
+                .uri(uriBuilder -> uriBuilder.path("/v1beta/models/{model}:embedContent")
+                    .queryParam("key", apiKey).build(model))
+                .body(new GeminiEmbeddingRequest("models/" + model, DIMENSIONS, new GeminiContent(new GeminiPart(content))))
+                .retrieve()
+                .body(JsonNode.class)));
+        } catch (ProviderCircuitBreaker.CircuitOpenException exception) {
+            telemetry.recordCircuitOpen("gemini");
+            throw exception;
+        }
+        JsonNode promptTokenCount = response == null ? null : response.path("usageMetadata").path("promptTokenCount");
+        if (promptTokenCount != null && promptTokenCount.isIntegralNumber() && promptTokenCount.longValue() >= 0) {
+            telemetry.recordTokenUsage("gemini", promptTokenCount.longValue(), 0);
+        }
         JsonNode values = response == null ? null : response.path("embedding").path("values");
         if (values == null || !values.isArray() || values.size() != DIMENSIONS) {
             throw new EmbeddingException("Gemini returned an invalid embedding dimension");
