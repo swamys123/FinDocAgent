@@ -35,6 +35,13 @@ public final class ProviderCircuitBreaker {
         }
     }
 
+    public synchronized int stateCode() {
+        if (openedAt == 0) {
+            return 0;
+        }
+        return System.currentTimeMillis() - openedAt < openDurationMillis ? 1 : 2;
+    }
+
     private synchronized void beforeCall() {
         if (openedAt == 0) {
             return;

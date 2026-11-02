@@ -64,6 +64,7 @@ public class KafkaConfiguration {
         factory.setConsumerFactory(consumerFactory);
         factory.setCommonErrorHandler(ingestionErrorHandler);
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.getContainerProperties().setObservationEnabled(true);
         return factory;
     }
 

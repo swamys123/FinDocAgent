@@ -2,7 +2,7 @@
 
 ## Current status
 
-The implementation is now beyond the initial scaffold and includes the main tenant-aware backend flow for document ingestion and agent querying.
+The implementation is now beyond the initial scaffold and includes the main tenant-aware backend flow for document ingestion and agent querying, plus an opt-in Prometheus, Grafana, and Tempo stack for local metrics and distributed tracing.
 
 Previously recorded validation (not rerun during this documentation update):
 
@@ -26,6 +26,7 @@ Implemented so far:
 - Optional tenant-scoped HTTP idempotency keys for upload, query, and comparison; tenant-admin replay for failed ingestion jobs
 - Tenant-scoped document content-hash deduplication and manual upload retry using the same idempotency key for that attempt
 - Session and trace persistence with request-scoped MDC logging for `trace_id`, `tenant_id`, and `user_id`
+- Optional local Prometheus metrics, Grafana dashboards, Tempo OTLP traces, and W3C trace-context propagation through ingestion
 - OpenRouter-backed generation with structured comparison fallback and response validation
 - React frontend with login, document management, status polling, document selection, session-aware queries, and recent-query trace explanations
 - Vitest component tests for login success/failure states and recent-trace loading, empty, failure, and detail-expansion states
@@ -36,6 +37,7 @@ Current runtime caveats:
 
 - `integrationTest` runs tests tagged `integration` with PostgreSQL/Kafka Testcontainers and requires an accessible Docker socket. `localIntegrationTest` runs tests tagged `local-integration` against local PostgreSQL and Kafka; its PostgreSQL test database must already exist. It also includes live-provider tests, which skip when the corresponding Gemini/OpenRouter key is absent.
 - `correctnessTest` uses Testcontainers and covers outbox delivery/recovery, ingestion idempotency, poison messages, dead-letter handling, upload idempotency, and content-hash deduplication. Audits 1–4 are implemented, and the full suite has passed. If Docker 29 rejects the Testcontainers Docker API negotiation, use `JAVA_TOOL_OPTIONS=-Dapi.version=1.44`.
+- Production Kafka topic permissions, replication, retention, alert configuration, and telemetry retention/rates still require deployment verification. Provider token counts and estimated costs also depend on returned usage metadata and configured rates.
 
 ## Prerequisites
 
@@ -61,6 +63,16 @@ cp -n .env.example .env
 Set a unique `JWT_SECRET` in `.env` before starting the application. Add `GEMINI_API_KEY` and `OPENROUTER_API_KEY` when validating provider-backed embedding and generation flows. Gradle loads `.env` for `bootRun`, `test`, `localIntegrationTest`, and `integrationTest`; environment variables already supplied by your shell, CI system, or deployment platform take precedence. The `-n` option preserves any existing local `.env`.
 
 `.env` is local and Git-ignored. Do not use it in CI or deployed environments; inject secrets through the environment or the platform secret manager instead.
+
+## Optional Local Observability
+
+From the repository root, start the normal application with the optional Prometheus, Grafana, and Tempo services:
+
+```bash
+docker compose --env-file findoc-agent/.env -f docker-compose.yml -f docker-compose.observability.yml --profile observability up -d
+```
+
+The Compose override activates the Spring `observability` profile, which serves management endpoints on internal port `8081` and exports OTLP traces to Tempo. Prometheus scrapes the backend over the Compose network; port `8081` is not published to the host. Omitting the override leaves the normal Compose setup unchanged. For dashboard access, service URLs, credentials, cost-rate configuration, screenshots, and shutdown instructions, see the root [observability overview](../../README.md#observability) and the detailed [backend observability runbook](../../findoc-agent/README.md#run-observability).
 
 ### Run backend test suites
 
